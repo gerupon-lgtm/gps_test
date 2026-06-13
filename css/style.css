@@ -113,20 +113,40 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
   padding: 10px 12px 12px;
 }
 
-/* 1. 最寄りスポット(最上部・強調) */
+/* 1. 最寄りスポット(最上部・2行表示) */
 .nearest-box {
   display: flex;
-  align-items: baseline;
-  gap: 10px;
+  flex-direction: column;
+  gap: 2px;
   background: var(--panel);
   border-radius: var(--radius);
-  padding: 8px 14px;
+  padding: 10px 16px;
   flex: 0 0 auto;
 }
-.nearest-label { font-size: 0.7rem; color: var(--muted); }
-.nearest-name { font-size: 1.1rem; font-weight: 800; flex: 1; }
-.nearest-dist { font-size: 1.3rem; font-weight: 800; color: var(--primary); font-variant-numeric: tabular-nums; }
-.nearest-dist::after { content: ""; }
+.nearest-label { font-size: 0.78rem; color: var(--muted); }
+.nearest-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.nearest-name {
+  font-size: 1.6rem;
+  font-weight: 800;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nearest-dist {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--primary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
 
 /* 2. 判定行 + 敵出現 */
 .judge-line { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; flex-wrap: wrap; }
@@ -156,7 +176,7 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 .map {
   width: 100%;
   flex: 1 1 auto;
-  min-height: 240px;
+  min-height: 300px;
   border-radius: var(--radius);
   background: var(--panel2);
   z-index: 0;

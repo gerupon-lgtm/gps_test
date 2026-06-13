@@ -22,7 +22,7 @@ const CONFIG = {
   VICTORY_COOLDOWN_MINUTES: 60,
 
   // 地図のデフォルト拡大率(大きいほど拡大)
-  MAP_DEFAULT_ZOOM: 18,
+  MAP_DEFAULT_ZOOM: 19,
 
   // Geolocation API のオプション
   GEO_OPTIONS: {

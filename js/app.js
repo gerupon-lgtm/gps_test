@@ -131,36 +131,48 @@ function updateExplore(pos) {
   if (!App.data || App.data.spots.length === 0) {
     $("nearest-name").textContent = "-";
     $("nearest-dist").textContent = "-";
-    setJudge("スポットデータなし", "");
+    setJudge("", "");
     hideEnemyArea();
     return;
   }
 
-  // 最寄りスポット(最上部に表示)
+  const accOk =
+    pos.accuracy == null || pos.accuracy <= CONFIG.GPS_ACCURACY_LIMIT_METERS;
+
+  // 最寄りスポット(最上部・2行表示。距離の後ろに状態を付ける)
   const nearest = findNearestSpot(pos, App.data.spots);
   if (nearest) {
+    const d = Math.round(nearest.distance);
+    let status;
+    if (!accOk) {
+      status = "精度不足";
+    } else if (nearest.distance <= nearest.spot.radius_meters) {
+      if (isPenaltyActive(nearest.spot.spot_id)) status = "再戦待機中";
+      else if (isVictoryCooldownActive(nearest.spot.spot_id)) status = "撃破済み";
+      else status = "範囲内";
+    } else {
+      status = "範囲外";
+    }
     $("nearest-name").textContent = nearest.spot.spot_name;
-    $("nearest-dist").textContent = Math.round(nearest.distance) + " m";
+    $("nearest-dist").textContent = d + " m(" + status + ")";
   } else {
     $("nearest-name").textContent = "-";
     $("nearest-dist").textContent = "-";
   }
 
-  // 精度チェック
-  const accOk =
-    pos.accuracy == null || pos.accuracy <= CONFIG.GPS_ACCURACY_LIMIT_METERS;
+  // 精度不足
   if (!accOk) {
     clearWaitTimer();
-    setJudge("精度不足", "位置精度が低いため判定を保留しています(屋外で再取得してください)");
+    setJudge("", "位置精度が低いため判定を保留しています(屋外で再取得してください)");
     hideEnemyArea();
     return;
   }
 
-  // 範囲内スポット
+  // 範囲内スポット(敵出現判定)
   const enterable = findEnterableSpot(pos, App.data.spots, pos.accuracy);
   if (!enterable) {
     clearWaitTimer();
-    setJudge("範囲外", "登録地点の範囲外です");
+    setJudge("", "");
     hideEnemyArea();
     return;
   }
@@ -170,7 +182,7 @@ function updateExplore(pos) {
   // 敗北ペナルティ中
   if (isPenaltyActive(spot.spot_id)) {
     const sec = getPenaltyRemainingSeconds(spot.spot_id);
-    setJudge("範囲内(再戦待機中)", "あと " + formatTime(sec) + " で再戦可能");
+    setJudge("", "あと " + formatTime(sec) + " で再戦可能");
     hideEnemyArea();
     startWaitCountdown(spot, pos, "penalty");
     return;
@@ -179,7 +191,7 @@ function updateExplore(pos) {
   // 勝利クールダウン中(撃破後の再出現待ち)
   if (isVictoryCooldownActive(spot.spot_id)) {
     const sec = getVictoryRemainingSeconds(spot.spot_id);
-    setJudge("撃破済み", "あと " + formatTime(sec) + " で敵が再出現");
+    setJudge("", "あと " + formatTime(sec) + " で敵が再出現");
     hideEnemyArea();
     startWaitCountdown(spot, pos, "victory");
     return;
@@ -189,19 +201,26 @@ function updateExplore(pos) {
   const enemy = App.data.enemyMap[spot.enemy_id];
   if (!enemy) {
     clearWaitTimer();
-    setJudge("範囲内", "");
+    setJudge("", "");
     showEnemyAreaError("敵データが見つかりません (enemy_id: " + spot.enemy_id + ")");
     return;
   }
 
   // 敵出現
   clearWaitTimer();
-  setJudge("範囲内", "");
+  setJudge("", "");
   showEnemyArea(spot, enemy);
 }
 
 function setJudge(state, detail) {
-  $("judge-state").textContent = state;
+  const st = $("judge-state");
+  if (state) {
+    st.textContent = state;
+    st.classList.remove("hidden");
+  } else {
+    st.textContent = "";
+    st.classList.add("hidden");
+  }
   $("judge-detail").textContent = detail || "";
 }
 
@@ -269,6 +288,11 @@ function onStartBattle() {
   const spot = App.currentSpot;
   const enemy = App._pendingEnemy;
   if (!spot || !enemy) return;
+  // 念のため: クールダウン/ペナルティ中は戦闘開始しない
+  if (isPenaltyActive(spot.spot_id) || isVictoryCooldownActive(spot.spot_id)) {
+    updateExplore(App.lastPosition);
+    return;
+  }
   App.currentBattle = createBattleState(enemy);
   renderBattle();
   showScreen("battle");

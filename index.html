@@ -59,16 +59,18 @@
   <!-- ===== 探索画面(スマホ一画面完結のflex縦並び) ===== -->
   <main id="screen-explore" class="screen explore-screen hidden">
 
-    <!-- 1. 最寄りスポット(最上部) -->
+    <!-- 1. 最寄りスポット(最上部・2行表示) -->
     <div class="nearest-box">
       <div class="nearest-label">最寄りスポット</div>
-      <div class="nearest-name" id="nearest-name">-</div>
-      <div class="nearest-dist"><span id="nearest-dist">-</span></div>
+      <div class="nearest-row">
+        <span class="nearest-name" id="nearest-name">-</span>
+        <span class="nearest-dist" id="nearest-dist">-</span>
+      </div>
     </div>
 
-    <!-- 2. 判定状態 + 敵出現(上部) -->
+    <!-- 2. 状態詳細(カウントダウン等) + 敵出現 -->
     <div class="judge-line">
-      <span id="judge-state" class="judge">-</span>
+      <span id="judge-state" class="judge hidden"></span>
       <span id="judge-detail" class="judge-detail"></span>
     </div>
 
@@ -83,8 +85,8 @@
     <!-- 3. 地図(大きく) -->
     <div id="map" class="map"></div>
 
-    <!-- 4. 座標などの詳細(下部・折りたたみ) -->
-    <details class="coords-box" open>
+    <!-- 4. 座標などの詳細(下部・デフォルト閉じる) -->
+    <details class="coords-box">
       <summary>現在地の詳細</summary>
       <table class="info-table">
         <tr><th>緯度</th><td id="cur-lat">-</td></tr>
