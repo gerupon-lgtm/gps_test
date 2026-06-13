@@ -134,6 +134,8 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
   font-size: 1.6rem;
   font-weight: 800;
   line-height: 1.2;
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -146,6 +148,7 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
   text-align: right;
   white-space: nowrap;
   flex: 0 0 auto;
+  margin-left: auto;
 }
 
 /* 2. 判定行 + 敵出現 */
