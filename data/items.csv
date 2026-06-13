@@ -1,0 +1,3 @@
+item_id,item_name,description,rarity
+item_001,テストポーション,検証用の回復アイテム,normal
+item_002,テストメダル,検証用の収集アイテム,rare

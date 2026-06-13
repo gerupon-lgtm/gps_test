@@ -1,0 +1,3 @@
+enemy_id,enemy_name,hp,attack,defense,image
+enemy_001,テストスライム,30,8,2,assets/enemy_slime.png
+enemy_002,テストゴーレム,60,12,5,assets/enemy_golem.png

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>GPS連動ブラウザゲーム 検証版</title>
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>GPS連動ブラウザゲーム <span class="badge">検証版</span></h1>
+    <button id="debug-toggle" class="debug-toggle" title="テスト機能">🛠 テスト</button>
+  </header>
+
+  <!-- ===== デバッグ/テストパネル ===== -->
+  <section id="debug-panel" class="debug-panel hidden">
+    <h2>テスト機能(実際に移動せず検証)</h2>
+    <p class="muted small">
+      位置を手動入力するとモックGPSとして扱われます。実GPSに戻すには「モック解除」後に開始ボタンを押してください。
+    </p>
+    <div class="debug-row">
+      <select id="spot-jump"></select>
+    </div>
+    <div class="debug-grid">
+      <label>緯度 <input id="mock-lat" type="number" step="0.000001" placeholder="35.681236" /></label>
+      <label>経度 <input id="mock-lng" type="number" step="0.000001" placeholder="139.767125" /></label>
+      <label>精度(m) <input id="mock-acc" type="number" step="1" value="10" /></label>
+    </div>
+    <div class="debug-row">
+      <button id="btn-apply-mock" class="btn">この位置を適用</button>
+      <button id="btn-clear-mock" class="btn btn-sub">モック解除</button>
+      <button id="btn-clear-storage" class="btn btn-danger">localStorageクリア</button>
+    </div>
+    <div class="debug-row">
+      <label class="checkbox-label">
+        <input id="chk-force-lose" type="checkbox" />
+        次の戦闘を必ず敗北させる(敗北ペナルティの検証用)
+      </label>
+    </div>
+    <p id="debug-status" class="debug-status"></p>
+  </section>
+
+  <!-- ===== トップ画面 ===== -->
+  <main id="screen-top" class="screen">
+    <p class="lead">位置情報(GPS)を使用する検証用ゲームです。</p>
+    <p id="data-status" class="data-status">データ読み込み中...</p>
+    <button id="btn-start" class="btn btn-primary btn-big">位置情報を取得して開始</button>
+    <p class="notice">
+      ⚠ 実際に移動して検証する際は、周囲の安全を必ず確認してください。歩きスマホはしないでください。
+    </p>
+
+    <section class="items-box">
+      <h2>所持アイテム(<span id="items-count">0</span>)</h2>
+      <ul id="items-list" class="items-list"></ul>
+    </section>
+  </main>
+
+  <!-- ===== 探索画面 ===== -->
+  <main id="screen-explore" class="screen hidden">
+    <h2>探索中</h2>
+    <table class="info-table">
+      <tr><th>緯度</th><td id="cur-lat">-</td></tr>
+      <tr><th>経度</th><td id="cur-lng">-</td></tr>
+      <tr><th>GPS精度</th><td id="cur-acc">-</td></tr>
+      <tr><th>取得元</th><td id="cur-source">-</td></tr>
+      <tr><th>最寄りスポット</th><td id="nearest-name">-</td></tr>
+      <tr><th>距離</th><td id="nearest-dist">-</td></tr>
+      <tr><th>判定状態</th><td><span id="judge-state" class="judge">-</span></td></tr>
+    </table>
+    <p id="judge-detail" class="judge-detail"></p>
+    <p id="geo-error" class="error-text"></p>
+
+    <section id="enemy-area" class="enemy-area hidden">
+      <h3>⚔ 敵が出現!</h3>
+      <p>スポット: <strong id="enemy-area-name">-</strong></p>
+      <p>敵: <strong id="enemy-area-enemy">-</strong></p>
+      <button id="btn-start-battle" class="btn btn-primary">戦闘開始</button>
+    </section>
+
+    <button id="btn-stop" class="btn btn-sub">探索をやめる</button>
+  </main>
+
+  <!-- ===== 戦闘画面 ===== -->
+  <main id="screen-battle" class="screen hidden">
+    <h2>戦闘</h2>
+    <div class="battle-enemy">
+      <img id="battle-enemy-img" class="enemy-img" alt="" />
+      <p class="enemy-name" id="battle-enemy-name">-</p>
+      <div class="hp-row">
+        <span>敵HP</span>
+        <div class="hp-bar-bg"><div id="enemy-hp-bar" class="hp-bar enemy"></div></div>
+        <span><span id="battle-enemy-hp">-</span>/<span id="battle-enemy-hp-max">-</span></span>
+      </div>
+    </div>
+
+    <div class="battle-player">
+      <div class="hp-row">
+        <span>自HP</span>
+        <div class="hp-bar-bg"><div id="player-hp-bar" class="hp-bar player"></div></div>
+        <span><span id="battle-player-hp">-</span>/<span id="battle-player-hp-max">-</span></span>
+      </div>
+    </div>
+
+    <button id="btn-attack" class="btn btn-primary btn-big">攻撃</button>
+
+    <div id="battle-result" class="battle-result hidden"></div>
+    <p id="battle-reward" class="battle-reward hidden"></p>
+
+    <div id="battle-log" class="battle-log"></div>
+
+    <button id="btn-battle-back" class="btn btn-sub hidden">探索に戻る</button>
+  </main>
+
+  <footer class="app-footer">
+    <p class="muted small">PoC / 技術検証版 — GitHub Pages + Geolocation API + CSV + localStorage</p>
+  </footer>
+
+  <!-- スクリプト(読み込み順に注意: config → 各モジュール → app) -->
+  <script src="./js/config.js"></script>
+  <script src="./js/distance.js"></script>
+  <script src="./js/csvLoader.js"></script>
+  <script src="./js/geo.js"></script>
+  <script src="./js/battle.js"></script>
+  <script src="./js/storage.js"></script>
+  <script src="./js/app.js"></script>
+</body>
+</html>
