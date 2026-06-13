@@ -4,12 +4,12 @@
 // =====================================================
 
 const App = {
-  data: null, // { spots, enemies, items, enemyMap, itemMap }
+  data: null,
   watching: false,
-  lastPosition: null, // { latitude, longitude, accuracy }
+  lastPosition: null,
   currentBattle: null,
-  currentSpot: null, // 戦闘中のスポット
-  penaltyTimer: null,
+  currentSpot: null,
+  waitTimer: null, // 待機(敗北/勝利)カウントダウン用
 };
 
 // ---- ユーティリティ ----
@@ -131,21 +131,26 @@ function updateExplore(pos) {
   if (!App.data || App.data.spots.length === 0) {
     $("nearest-name").textContent = "-";
     $("nearest-dist").textContent = "-";
-    $("judge-state").textContent = "スポットデータなし";
+    setJudge("スポットデータなし", "");
+    hideEnemyArea();
     return;
   }
 
-  // 最寄りスポット
+  // 最寄りスポット(最上部に表示)
   const nearest = findNearestSpot(pos, App.data.spots);
   if (nearest) {
     $("nearest-name").textContent = nearest.spot.spot_name;
     $("nearest-dist").textContent = Math.round(nearest.distance) + " m";
+  } else {
+    $("nearest-name").textContent = "-";
+    $("nearest-dist").textContent = "-";
   }
 
   // 精度チェック
   const accOk =
     pos.accuracy == null || pos.accuracy <= CONFIG.GPS_ACCURACY_LIMIT_METERS;
   if (!accOk) {
+    clearWaitTimer();
     setJudge("精度不足", "位置精度が低いため判定を保留しています(屋外で再取得してください)");
     hideEnemyArea();
     return;
@@ -154,6 +159,7 @@ function updateExplore(pos) {
   // 範囲内スポット
   const enterable = findEnterableSpot(pos, App.data.spots, pos.accuracy);
   if (!enterable) {
+    clearWaitTimer();
     setJudge("範囲外", "登録地点の範囲外です");
     hideEnemyArea();
     return;
@@ -161,24 +167,35 @@ function updateExplore(pos) {
 
   const spot = enterable.spot;
 
-  // ペナルティ中チェック
+  // 敗北ペナルティ中
   if (isPenaltyActive(spot.spot_id)) {
     const sec = getPenaltyRemainingSeconds(spot.spot_id);
-    setJudge("範囲内(再戦待機中)", spot.spot_name + ": あと " + formatTime(sec) + " で再戦可能");
+    setJudge("範囲内(再戦待機中)", "あと " + formatTime(sec) + " で再戦可能");
     hideEnemyArea();
-    startPenaltyCountdown(spot, pos);
+    startWaitCountdown(spot, pos, "penalty");
+    return;
+  }
+
+  // 勝利クールダウン中(撃破後の再出現待ち)
+  if (isVictoryCooldownActive(spot.spot_id)) {
+    const sec = getVictoryRemainingSeconds(spot.spot_id);
+    setJudge("撃破済み", "あと " + formatTime(sec) + " で敵が再出現");
+    hideEnemyArea();
+    startWaitCountdown(spot, pos, "victory");
     return;
   }
 
   // 敵定義チェック
   const enemy = App.data.enemyMap[spot.enemy_id];
   if (!enemy) {
+    clearWaitTimer();
     setJudge("範囲内", "");
     showEnemyAreaError("敵データが見つかりません (enemy_id: " + spot.enemy_id + ")");
     return;
   }
 
   // 敵出現
+  clearWaitTimer();
   setJudge("範囲内", "");
   showEnemyArea(spot, enemy);
 }
@@ -208,23 +225,40 @@ function showEnemyArea(spot, enemy) {
   App._pendingEnemy = enemy;
 }
 
-// ペナルティのカウントダウン(1秒ごとに再描画)
-function startPenaltyCountdown(spot, pos) {
-  clearInterval(App.penaltyTimer);
-  App.penaltyTimer = setInterval(() => {
-    if (!isPenaltyActive(spot.spot_id)) {
-      clearInterval(App.penaltyTimer);
+// 待機カウントダウン(敗北ペナルティ/勝利クールダウン共通)
+function clearWaitTimer() {
+  if (App.waitTimer) {
+    clearInterval(App.waitTimer);
+    App.waitTimer = null;
+  }
+}
+
+function startWaitCountdown(spot, pos, kind) {
+  clearWaitTimer();
+  App.waitTimer = setInterval(() => {
+    const active =
+      kind === "penalty"
+        ? isPenaltyActive(spot.spot_id)
+        : isVictoryCooldownActive(spot.spot_id);
+    if (!active) {
+      clearWaitTimer();
       updateExplore(App.lastPosition || pos);
       return;
     }
-    const sec = getPenaltyRemainingSeconds(spot.spot_id);
-    $("judge-detail").textContent = spot.spot_name + ": あと " + formatTime(sec) + " で再戦可能";
+    const sec =
+      kind === "penalty"
+        ? getPenaltyRemainingSeconds(spot.spot_id)
+        : getVictoryRemainingSeconds(spot.spot_id);
+    const word = kind === "penalty" ? "で再戦可能" : "で敵が再出現";
+    $("judge-detail").textContent = "あと " + formatTime(sec) + " " + word;
   }, 1000);
 }
 
 function formatTime(sec) {
-  const m = Math.floor(sec / 60);
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
   const s = sec % 60;
+  if (h > 0) return h + "時間" + String(m).padStart(2, "0") + "分";
   return m + "分" + String(s).padStart(2, "0") + "秒";
 }
 
@@ -297,6 +331,12 @@ function renderBattle() {
 
 function handleWin() {
   const spot = App.currentSpot;
+
+  // 勝利クールダウンを保存(同じ敵が一定時間再出現しない)
+  const cdMin = CONFIG.VICTORY_COOLDOWN_MINUTES || 0;
+  const availableAt = new Date(Date.now() + cdMin * 60 * 1000).toISOString();
+  saveVictoryCooldown(spot.spot_id, availableAt);
+
   const item = App.data.itemMap[spot.reward_item_id];
   if (!item) {
     $("battle-reward").textContent =
@@ -310,7 +350,8 @@ function handleWin() {
     acquiredAt: new Date().toISOString(),
   };
   saveItem(record);
-  $("battle-reward").textContent = "「" + item.item_name + "」を手に入れた!";
+  $("battle-reward").textContent =
+    "「" + item.item_name + "」を手に入れた!(このスポットの敵は約" + cdMin + "分後に再出現)";
   show("battle-reward");
   renderItems();
 }

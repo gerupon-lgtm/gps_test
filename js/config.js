@@ -18,6 +18,12 @@ const CONFIG = {
   // テスト用: true にすると次のターンで必ず敗北する(敗北ペナルティ検証用)
   DEBUG_FORCE_LOSE: false,
 
+  // 勝利後、同じスポットの敵が再出現しないクールダウン時間(分)
+  VICTORY_COOLDOWN_MINUTES: 60,
+
+  // 地図のデフォルト拡大率(大きいほど拡大)
+  MAP_DEFAULT_ZOOM: 18,
+
   // Geolocation API のオプション
   GEO_OPTIONS: {
     enableHighAccuracy: true,
@@ -36,5 +42,6 @@ const CONFIG = {
   STORAGE_KEYS: {
     items: "gps_game_items",
     penalties: "gps_game_penalties",
+    victories: "gps_game_victory_cooldowns",
   },
 };

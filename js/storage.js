@@ -35,7 +35,7 @@ function getItems() {
   return _read(CONFIG.STORAGE_KEYS.items, []);
 }
 
-// ---- ペナルティ ----
+// ---- 敗北ペナルティ ----
 
 // spotId 単位で再戦可能時刻(ISO文字列)を保存
 function savePenalty(spotId, retryAt) {
@@ -49,18 +49,43 @@ function getPenalty(spotId) {
   return penalties[spotId] || null;
 }
 
-// 現在ペナルティ中(再戦不可)かどうか
 function isPenaltyActive(spotId) {
   const p = getPenalty(spotId);
   if (!p || !p.retryAt) return false;
   return Date.now() < new Date(p.retryAt).getTime();
 }
 
-// 再戦可能までの残り秒数(ペナルティ中でなければ0)
 function getPenaltyRemainingSeconds(spotId) {
   const p = getPenalty(spotId);
   if (!p || !p.retryAt) return 0;
   const diff = new Date(p.retryAt).getTime() - Date.now();
+  return diff > 0 ? Math.ceil(diff / 1000) : 0;
+}
+
+// ---- 勝利クールダウン(撃破後の再出現待ち) ----
+
+// spotId 単位で再出現時刻(ISO文字列)を保存
+function saveVictoryCooldown(spotId, availableAt) {
+  const v = _read(CONFIG.STORAGE_KEYS.victories, {});
+  v[spotId] = { availableAt };
+  _write(CONFIG.STORAGE_KEYS.victories, v);
+}
+
+function getVictoryCooldown(spotId) {
+  const v = _read(CONFIG.STORAGE_KEYS.victories, {});
+  return v[spotId] || null;
+}
+
+function isVictoryCooldownActive(spotId) {
+  const c = getVictoryCooldown(spotId);
+  if (!c || !c.availableAt) return false;
+  return Date.now() < new Date(c.availableAt).getTime();
+}
+
+function getVictoryRemainingSeconds(spotId) {
+  const c = getVictoryCooldown(spotId);
+  if (!c || !c.availableAt) return 0;
+  const diff = new Date(c.availableAt).getTime() - Date.now();
   return diff > 0 ? Math.ceil(diff / 1000) : 0;
 }
 
@@ -69,4 +94,5 @@ function getPenaltyRemainingSeconds(spotId) {
 function clearDebugData() {
   localStorage.removeItem(CONFIG.STORAGE_KEYS.items);
   localStorage.removeItem(CONFIG.STORAGE_KEYS.penalties);
+  localStorage.removeItem(CONFIG.STORAGE_KEYS.victories);
 }

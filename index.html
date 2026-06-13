@@ -23,8 +23,8 @@
       <select id="spot-jump"></select>
     </div>
     <div class="debug-grid">
-      <label>緯度 <input id="mock-lat" type="number" step="0.000001" placeholder="35.681236" /></label>
-      <label>経度 <input id="mock-lng" type="number" step="0.000001" placeholder="139.767125" /></label>
+      <label>緯度 <input id="mock-lat" type="number" step="0.000001" placeholder="35.014769" /></label>
+      <label>経度 <input id="mock-lng" type="number" step="0.000001" placeholder="136.660821" /></label>
       <label>精度(m) <input id="mock-acc" type="number" step="1" value="10" /></label>
     </div>
     <div class="debug-row">
@@ -56,30 +56,45 @@
     </section>
   </main>
 
-  <!-- ===== 探索画面 ===== -->
-  <main id="screen-explore" class="screen hidden">
-    <h2>探索中</h2>
-    <div id="map" class="map"></div>
-    <table class="info-table">
-      <tr><th>緯度</th><td id="cur-lat">-</td></tr>
-      <tr><th>経度</th><td id="cur-lng">-</td></tr>
-      <tr><th>GPS精度</th><td id="cur-acc">-</td></tr>
-      <tr><th>取得元</th><td id="cur-source">-</td></tr>
-      <tr><th>最寄りスポット</th><td id="nearest-name">-</td></tr>
-      <tr><th>距離</th><td id="nearest-dist">-</td></tr>
-      <tr><th>判定状態</th><td><span id="judge-state" class="judge">-</span></td></tr>
-    </table>
-    <p id="judge-detail" class="judge-detail"></p>
-    <p id="geo-error" class="error-text"></p>
+  <!-- ===== 探索画面(スマホ一画面完結のflex縦並び) ===== -->
+  <main id="screen-explore" class="screen explore-screen hidden">
+
+    <!-- 1. 最寄りスポット(最上部) -->
+    <div class="nearest-box">
+      <div class="nearest-label">最寄りスポット</div>
+      <div class="nearest-name" id="nearest-name">-</div>
+      <div class="nearest-dist"><span id="nearest-dist">-</span></div>
+    </div>
+
+    <!-- 2. 判定状態 + 敵出現(上部) -->
+    <div class="judge-line">
+      <span id="judge-state" class="judge">-</span>
+      <span id="judge-detail" class="judge-detail"></span>
+    </div>
 
     <section id="enemy-area" class="enemy-area hidden">
       <h3>⚔ 敵が出現!</h3>
-      <p>スポット: <strong id="enemy-area-name">-</strong></p>
-      <p>敵: <strong id="enemy-area-enemy">-</strong></p>
+      <p><strong id="enemy-area-enemy">-</strong> <span class="muted small">@ <span id="enemy-area-name">-</span></span></p>
       <button id="btn-start-battle" class="btn btn-primary">戦闘開始</button>
     </section>
 
-    <button id="btn-stop" class="btn btn-sub">探索をやめる</button>
+    <p id="geo-error" class="error-text"></p>
+
+    <!-- 3. 地図(大きく) -->
+    <div id="map" class="map"></div>
+
+    <!-- 4. 座標などの詳細(下部・折りたたみ) -->
+    <details class="coords-box" open>
+      <summary>現在地の詳細</summary>
+      <table class="info-table">
+        <tr><th>緯度</th><td id="cur-lat">-</td></tr>
+        <tr><th>経度</th><td id="cur-lng">-</td></tr>
+        <tr><th>GPS精度</th><td id="cur-acc">-</td></tr>
+        <tr><th>取得元</th><td id="cur-source">-</td></tr>
+      </table>
+    </details>
+
+    <button id="btn-stop" class="btn btn-sub btn-stop">探索をやめる</button>
   </main>
 
   <!-- ===== 戦闘画面 ===== -->

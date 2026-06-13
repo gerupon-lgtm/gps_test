@@ -14,10 +14,12 @@ function isLeafletReady() {
   return typeof L !== "undefined";
 }
 
-// 地図を初期化(探索画面表示後・地図要素が見えてから呼ぶ)
 function initMap() {
   if (_mapInited || !isLeafletReady()) return;
-  _map = L.map("map", { zoomControl: true }).setView([35.681236, 139.767125], 16);
+  _map = L.map("map", { zoomControl: true }).setView(
+    [35.01476933763732, 136.66082076514405],
+    CONFIG.MAP_DEFAULT_ZOOM
+  );
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     attribution: "&copy; OpenStreetMap contributors",
@@ -25,14 +27,12 @@ function initMap() {
   _mapInited = true;
 }
 
-// 表示直後にサイズを再計算(非表示中に初期化すると崩れるため)
 function refreshMapSize() {
   if (_map) {
     setTimeout(() => _map.invalidateSize(), 80);
   }
 }
 
-// 現在地を地図に反映する
 function updateMapPosition(lat, lng, accuracy) {
   if (!isLeafletReady()) return;
   if (!_mapInited) initMap();
@@ -40,7 +40,6 @@ function updateMapPosition(lat, lng, accuracy) {
 
   const ll = [lat, lng];
 
-  // 現在地の点
   if (!_selfDot) {
     _selfDot = L.circleMarker(ll, {
       radius: 8,
@@ -55,7 +54,6 @@ function updateMapPosition(lat, lng, accuracy) {
     _selfDot.setLatLng(ll);
   }
 
-  // 精度の円
   if (accuracy != null && !Number.isNaN(accuracy)) {
     if (!_accCircle) {
       _accCircle = L.circle(ll, {
@@ -71,5 +69,7 @@ function updateMapPosition(lat, lng, accuracy) {
     }
   }
 
-  _map.setView(ll, _map.getZoom() < 14 ? 16 : _map.getZoom());
+  // 既定より引いている場合のみ既定ズームへ寄せる。ユーザーの拡大操作は尊重。
+  const z = _map.getZoom();
+  _map.setView(ll, z < CONFIG.MAP_DEFAULT_ZOOM - 2 ? CONFIG.MAP_DEFAULT_ZOOM : z);
 }
