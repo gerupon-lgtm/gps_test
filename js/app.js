@@ -31,11 +31,11 @@ function showScreen(name) {
 // 初期化
 // =====================================================
 async function init() {
-  // CSV読み込み
   try {
     App.data = await loadGameData();
     $("data-status").textContent =
-      `スポット ${App.data.spots.length}件 / 敵 ${App.data.enemies.length}件 / アイテム ${App.data.items.length}件 を読み込みました`;
+      "スポット " + App.data.spots.length + "件 / 敵 " + App.data.enemies.length +
+      "件 / アイテム " + App.data.items.length + "件 を読み込みました";
     $("data-status").classList.remove("error");
   } catch (e) {
     $("data-status").textContent = "データファイルを読み込めませんでした: " + e.message;
@@ -59,6 +59,7 @@ function bindEvents() {
     App.currentBattle = null;
     App.currentSpot = null;
     showScreen("explore");
+    refreshMapSize();
     updateExplore(App.lastPosition);
   });
   $("btn-start-battle").addEventListener("click", onStartBattle);
@@ -91,6 +92,7 @@ function bindEvents() {
 // =====================================================
 function onStart() {
   showScreen("explore");
+  refreshMapSize();
   $("geo-error").textContent = "";
   App.watching = true;
   startWatchPosition(onPositionUpdate, onPositionError);
@@ -122,6 +124,9 @@ function updateExplore(pos) {
   $("cur-acc").textContent =
     pos.accuracy != null ? Math.round(pos.accuracy) + " m" : "不明";
   $("cur-source").textContent = pos.mock ? "モック(テスト)" : "実GPS";
+
+  // 地図に現在地を反映(スポットは地図に出さない)
+  updateMapPosition(pos.latitude, pos.longitude, pos.accuracy);
 
   if (!App.data || App.data.spots.length === 0) {
     $("nearest-name").textContent = "-";
@@ -159,7 +164,7 @@ function updateExplore(pos) {
   // ペナルティ中チェック
   if (isPenaltyActive(spot.spot_id)) {
     const sec = getPenaltyRemainingSeconds(spot.spot_id);
-    setJudge("範囲内(再戦待機中)", `${spot.spot_name}: あと ${formatTime(sec)} で再戦可能`);
+    setJudge("範囲内(再戦待機中)", spot.spot_name + ": あと " + formatTime(sec) + " で再戦可能");
     hideEnemyArea();
     startPenaltyCountdown(spot, pos);
     return;
@@ -169,7 +174,7 @@ function updateExplore(pos) {
   const enemy = App.data.enemyMap[spot.enemy_id];
   if (!enemy) {
     setJudge("範囲内", "");
-    showEnemyAreaError(`敵データが見つかりません (enemy_id: ${spot.enemy_id})`);
+    showEnemyAreaError("敵データが見つかりません (enemy_id: " + spot.enemy_id + ")");
     return;
   }
 
@@ -199,7 +204,6 @@ function showEnemyArea(spot, enemy) {
   $("enemy-area-name").textContent = spot.spot_name;
   $("enemy-area-enemy").textContent = enemy.enemy_name;
   $("btn-start-battle").disabled = false;
-  // 戦闘開始に必要な情報を保持
   App.currentSpot = spot;
   App._pendingEnemy = enemy;
 }
@@ -214,14 +218,14 @@ function startPenaltyCountdown(spot, pos) {
       return;
     }
     const sec = getPenaltyRemainingSeconds(spot.spot_id);
-    $("judge-detail").textContent = `${spot.spot_name}: あと ${formatTime(sec)} で再戦可能`;
+    $("judge-detail").textContent = spot.spot_name + ": あと " + formatTime(sec) + " で再戦可能";
   }, 1000);
 }
 
 function formatTime(sec) {
   const m = Math.floor(sec / 60);
   const s = sec % 60;
-  return `${m}分${String(s).padStart(2, "0")}秒`;
+  return m + "分" + String(s).padStart(2, "0") + "秒";
 }
 
 // =====================================================
@@ -258,11 +262,9 @@ function renderBattle() {
   $("battle-player-hp").textContent = b.playerHp;
   $("battle-player-hp-max").textContent = b.playerMaxHp;
 
-  // HPバー
   $("enemy-hp-bar").style.width = (b.enemyHp / b.enemy.hp) * 100 + "%";
   $("player-hp-bar").style.width = (b.playerHp / b.playerMaxHp) * 100 + "%";
 
-  // 敵画像
   const img = $("battle-enemy-img");
   if (b.enemy.image) {
     img.src = b.enemy.image;
@@ -275,16 +277,13 @@ function renderBattle() {
     img.style.display = "none";
   }
 
-  // ログ
   const logEl = $("battle-log");
-  logEl.innerHTML = b.log.map((l) => `<div>${l}</div>`).join("");
+  logEl.innerHTML = b.log.map((l) => "<div>" + l + "</div>").join("");
   logEl.scrollTop = logEl.scrollHeight;
 
-  // 結果
   if (b.finished) {
     $("btn-attack").disabled = true;
-    $("battle-result").textContent =
-      b.result === "win" ? "勝利!" : "敗北...";
+    $("battle-result").textContent = b.result === "win" ? "勝利!" : "敗北...";
     $("battle-result").className =
       "battle-result " + (b.result === "win" ? "win" : "lose");
     show("battle-result");
@@ -301,7 +300,7 @@ function handleWin() {
   const item = App.data.itemMap[spot.reward_item_id];
   if (!item) {
     $("battle-reward").textContent =
-      `アイテムデータが見つかりません (item_id: ${spot.reward_item_id})`;
+      "アイテムデータが見つかりません (item_id: " + spot.reward_item_id + ")";
     show("battle-reward");
     return;
   }
@@ -311,7 +310,7 @@ function handleWin() {
     acquiredAt: new Date().toISOString(),
   };
   saveItem(record);
-  $("battle-reward").textContent = `「${item.item_name}」を手に入れた!`;
+  $("battle-reward").textContent = "「" + item.item_name + "」を手に入れた!";
   show("battle-reward");
   renderItems();
 }
@@ -321,8 +320,7 @@ function handleLose() {
   const minutes = spot.penalty_minutes || 0;
   const retryAt = new Date(Date.now() + minutes * 60 * 1000).toISOString();
   savePenalty(spot.spot_id, retryAt);
-  $("battle-reward").textContent =
-    `${minutes}分間、このスポットでは再戦できません`;
+  $("battle-reward").textContent = minutes + "分間、このスポットでは再戦できません";
   show("battle-reward");
 }
 
@@ -344,9 +342,9 @@ function renderItems() {
     .map((rec) => {
       const item = App.data ? App.data.itemMap[rec.itemId] : null;
       const name = item ? item.item_name : rec.itemId;
-      const rarity = item && item.rarity ? ` [${item.rarity}]` : "";
+      const rarity = item && item.rarity ? " [" + item.rarity + "]" : "";
       const t = new Date(rec.acquiredAt).toLocaleString("ja-JP");
-      return `<li>${name}${rarity} <span class="muted">(${rec.spotId} / ${t})</span></li>`;
+      return "<li>" + name + rarity + " <span class=\"muted\">(" + rec.spotId + " / " + t + ")</span></li>";
     })
     .join("");
 }
@@ -365,10 +363,10 @@ function applyMockFromInputs() {
   const accuracy = Number.isNaN(acc) ? 10 : acc;
   setMockPosition(lat, lng, accuracy);
   $("debug-status").textContent =
-    `モック位置を適用: ${lat.toFixed(6)}, ${lng.toFixed(6)} (精度${accuracy}m)`;
-  // 探索画面でなければ移動
+    "モック位置を適用: " + lat.toFixed(6) + ", " + lng.toFixed(6) + " (精度" + accuracy + "m)";
   if ($("screen-explore").classList.contains("hidden")) {
     showScreen("explore");
+    refreshMapSize();
   }
   App.lastPosition = { latitude: lat, longitude: lng, accuracy, mock: true };
   updateExplore(App.lastPosition);
@@ -381,10 +379,7 @@ function buildSpotJumpList() {
   sel.innerHTML =
     "<option value=''>-- スポットを選択してワープ --</option>" +
     App.data.spots
-      .map(
-        (s) =>
-          `<option value="${s.spot_id}">${s.spot_name} (${s.spot_id})</option>`
-      )
+      .map((s) => "<option value=\"" + s.spot_id + "\">" + s.spot_name + " (" + s.spot_id + ")</option>")
       .join("");
   sel.addEventListener("change", () => {
     const spot = App.data.spots.find((s) => s.spot_id === sel.value);
@@ -393,8 +388,11 @@ function buildSpotJumpList() {
     $("mock-lng").value = spot.longitude;
     $("mock-acc").value = 10;
     setMockPosition(spot.latitude, spot.longitude, 10);
-    $("debug-status").textContent = `「${spot.spot_name}」中心へワープしました`;
-    if ($("screen-explore").classList.contains("hidden")) showScreen("explore");
+    $("debug-status").textContent = "「" + spot.spot_name + "」中心へワープしました";
+    if ($("screen-explore").classList.contains("hidden")) {
+      showScreen("explore");
+      refreshMapSize();
+    }
     App.lastPosition = {
       latitude: spot.latitude,
       longitude: spot.longitude,

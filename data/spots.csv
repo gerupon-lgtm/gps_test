@@ -1,6 +1,6 @@
 spot_id,spot_name,latitude,longitude,radius_meters,enemy_id,reward_item_id,penalty_minutes,active
-spot_001,テスト地点A,35.681236,139.767125,50,enemy_001,item_001,5,true
-spot_002,テスト地点B,35.690000,139.700000,80,enemy_002,item_002,10,true
+spot_001,テスト地点A,35.681236,139.767125,50,enemy_001,item_001,5,false
+spot_002,テスト地点B,35.690000,139.700000,80,enemy_002,item_002,10,false
 spot_003,じゅらく,35.01476933763732,136.66082076514405,50,enemy_001,item_001,5,true
 spot_004,新橋,35.01198678291774,136.66145897782513,80,enemy_002,item_002,10,true
 spot_005,半平や,35.01079584821808,136.66011044954803,50,enemy_001,item_001,5,true
