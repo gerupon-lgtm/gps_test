@@ -1,18 +1,45 @@
 // =====================================================
 // map.js
-// Leaflet + OpenStreetMap で「自分の現在地」のみ表示する。
+// Leaflet で「自分の現在地」のみ表示する。
+// タイルは window.MAP_KEY があれば MapTiler、無ければ OSM にフォールバック。
+// (MAP_KEY は js/map-key.js で定義。Gitには含めない=ビルド時/手元で注入)
 // スポットのピンは置かない(距離は数字でのみ表示)。
-// Leaflet(L)が読み込めない場合は地図機能を無効化する。
 // =====================================================
 
 let _map = null;
-let _selfDot = null; // 現在地マーカー(円)
-let _accCircle = null; // 精度の円
+let _selfDot = null;
+let _accCircle = null;
 let _mapInited = false;
-let _lastLL = null; // 直近の現在地 [lat, lng]
+let _lastLL = null;
 
 function isLeafletReady() {
   return typeof L !== "undefined";
+}
+
+// 使用するタイルレイヤーを返す(MapTiler優先・OSMフォールバック)
+function buildTileLayer() {
+  const key = (typeof window !== "undefined" && window.MAP_KEY) ? window.MAP_KEY : "";
+  if (key) {
+    // MapTiler ラスタタイル(512px) → Leaflet用に tileSize/zoomOffset を調整
+    return L.tileLayer(
+      "https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=" + key,
+      {
+        tileSize: 512,
+        zoomOffset: -1,
+        minZoom: 1,
+        maxZoom: 20,
+        attribution:
+          '&copy; <a href="https://www.maptiler.com/copyright/">MapTiler</a> ' +
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        crossOrigin: true,
+      }
+    );
+  }
+  // フォールバック: OSM公開タイル(開発・キー未設定時のみ)
+  return L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap contributors",
+  });
 }
 
 function initMap() {
@@ -21,10 +48,7 @@ function initMap() {
     [35.01476933763732, 136.66082076514405],
     CONFIG.MAP_DEFAULT_ZOOM
   );
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: "&copy; OpenStreetMap contributors",
-  }).addTo(_map);
+  buildTileLayer().addTo(_map);
   _mapInited = true;
 }
 
@@ -71,12 +95,10 @@ function updateMapPosition(lat, lng, accuracy) {
     }
   }
 
-  // 既定より引いている場合のみ既定ズームへ寄せる。ユーザーの拡大操作は尊重。
   const z = _map.getZoom();
   _map.setView(ll, z < CONFIG.MAP_DEFAULT_ZOOM - 2 ? CONFIG.MAP_DEFAULT_ZOOM : z);
 }
 
-// 「現在地に戻る」: 地図の中心を現在地へ戻し、既定ズームにする
 function recenterMap() {
   if (!_map || !_lastLL) return false;
   _map.setView(_lastLL, CONFIG.MAP_DEFAULT_ZOOM);
