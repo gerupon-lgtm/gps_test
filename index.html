@@ -17,7 +17,7 @@
   <section id="debug-panel" class="debug-panel hidden">
     <h2>テスト機能(実際に移動せず検証)</h2>
     <p class="muted small">
-      位置を手動入力するとモックGPSとして扱われます。実GPSに戻すには「モック解除」後に開始ボタンを押してください。
+      位置を手動入力するとモックGPSとして扱われます。実GPSに戻すには「モック解除」を押してください。
     </p>
     <div class="debug-row">
       <select id="spot-jump"></select>
@@ -96,8 +96,23 @@
       </table>
     </details>
 
-    <button id="btn-stop" class="btn btn-sub btn-stop">探索をやめる</button>
+    <div class="explore-actions">
+      <button id="btn-spot-list" class="btn btn-sub">📋 スポット一覧</button>
+      <button id="btn-stop" class="btn btn-sub btn-stop">探索をやめる</button>
+    </div>
   </main>
+
+  <!-- ===== スポット一覧モーダル ===== -->
+  <div id="spot-list-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2>スポット一覧(近い順)</h2>
+        <button id="btn-spot-list-close" class="modal-close" aria-label="閉じる">✕</button>
+      </div>
+      <p id="spot-list-note" class="muted small"></p>
+      <ul id="spot-list" class="spot-list"></ul>
+    </div>
+  </div>
 
   <!-- ===== 戦闘画面 ===== -->
   <main id="screen-battle" class="screen hidden">

@@ -311,3 +311,91 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 @media (max-width: 400px) {
   .debug-grid { grid-template-columns: 1fr; }
 }
+
+/* ---- 探索画面下部のアクション ---- */
+.explore-actions {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.explore-actions .btn { margin: 0; }
+.btn-stop { align-self: auto; }
+
+/* ---- スポット一覧モーダル ---- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 2000;
+}
+.modal-card {
+  background: var(--panel);
+  width: 100%;
+  max-width: 560px;
+  max-height: 80vh;
+  border-radius: 16px 16px 0 0;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.4);
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.modal-head h2 { margin: 0; font-size: 1.05rem; }
+.modal-close {
+  background: var(--panel2);
+  border: none;
+  color: var(--text);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 1rem;
+  cursor: pointer;
+}
+.spot-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  overflow-y: auto;
+}
+.spot-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.spot-item:last-child { border-bottom: none; }
+.spot-item-name { font-weight: 700; font-size: 0.95rem; overflow-wrap: anywhere; }
+.spot-item-meta {
+  flex: 0 0 auto;
+  color: var(--primary);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-align: right;
+}
+.spot-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.spot-badge.defeated { background: #3a4a66; color: #9ec1ff; }
+.spot-badge.penalty { background: #5a2a32; color: #ffb3bf; }
+
+@media (min-width: 480px) {
+  .modal-overlay { align-items: center; }
+  .modal-card { border-radius: 16px; }
+}

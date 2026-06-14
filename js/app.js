@@ -63,6 +63,11 @@ function bindEvents() {
     updateExplore(App.lastPosition);
   });
   $("btn-start-battle").addEventListener("click", onStartBattle);
+  $("btn-spot-list").addEventListener("click", openSpotList);
+  $("btn-spot-list-close").addEventListener("click", closeSpotList);
+  $("spot-list-modal").addEventListener("click", (e) => {
+    if (e.target.id === "spot-list-modal") closeSpotList();
+  });
 
   // --- デバッグ機能 ---
   $("btn-apply-mock").addEventListener("click", applyMockFromInputs);
@@ -142,7 +147,7 @@ function updateExplore(pos) {
     pos.accuracy == null || pos.accuracy <= CONFIG.GPS_ACCURACY_LIMIT_METERS;
 
   // 最寄りスポット(最上部・2行表示。距離の後ろに状態を付ける)
-  const nearest = findNearestSpot(pos, App.data.spots);
+  const nearest = findNearestForDisplay(pos);
   if (nearest) {
     const d = Math.round(nearest.distance);
     let status;
@@ -215,6 +220,88 @@ function updateExplore(pos) {
 }
 
 // 最寄りスポット名を表示。長さに応じてフォントを縮小する。
+// 最寄りスポット(表示用)。撃破済みスポットは指定距離以内でないと候補から除外する。
+function findNearestForDisplay(pos) {
+  let best = null;
+  for (const spot of App.data.spots) {
+    if (!spot.active) continue;
+    const distance = calculateDistanceMeters(
+      pos.latitude, pos.longitude, spot.latitude, spot.longitude
+    );
+    // 撃破済み(クールダウン中)は閾値より遠いと最寄り候補にしない
+    if (
+      isVictoryCooldownActive(spot.spot_id) &&
+      distance > CONFIG.DEFEATED_HIDE_WITHIN_METERS
+    ) {
+      continue;
+    }
+    if (best === null || distance < best.distance) {
+      best = { spot, distance };
+    }
+  }
+  return best;
+}
+
+// スポット一覧モーダルを開く(近い順に名前・方位・距離)
+function openSpotList() {
+  buildSpotList();
+  show("spot-list-modal");
+}
+
+function closeSpotList() {
+  hide("spot-list-modal");
+}
+
+function buildSpotList() {
+  const ul = $("spot-list");
+  const note = $("spot-list-note");
+  if (!App.data || App.data.spots.length === 0) {
+    ul.innerHTML = "";
+    note.textContent = "スポットデータがありません";
+    return;
+  }
+  const pos = App.lastPosition;
+  if (!pos) {
+    ul.innerHTML = "";
+    note.textContent = "現在地が未取得です。先に位置情報を取得してください。";
+    return;
+  }
+
+  const rows = App.data.spots
+    .filter((s) => s.active)
+    .map((s) => {
+      const distance = calculateDistanceMeters(
+        pos.latitude, pos.longitude, s.latitude, s.longitude
+      );
+      const bearing = calculateBearing(
+        pos.latitude, pos.longitude, s.latitude, s.longitude
+      );
+      return { spot: s, distance, compass: bearingToCompass(bearing) };
+    })
+    .sort((a, b) => a.distance - b.distance);
+
+  note.textContent = "有効スポット " + rows.length + "件(現在地から)";
+  ul.innerHTML = rows
+    .map((r) => {
+      let badge = "";
+      if (isVictoryCooldownActive(r.spot.spot_id)) badge = " <span class=\"spot-badge defeated\">撃破済み</span>";
+      else if (isPenaltyActive(r.spot.spot_id)) badge = " <span class=\"spot-badge penalty\">待機中</span>";
+      return (
+        "<li class=\"spot-item\">" +
+        "<span class=\"spot-item-name\">" + r.spot.spot_name + badge + "</span>" +
+        "<span class=\"spot-item-meta\">" + r.compass + " / " + formatDistance(r.distance) + "</span>" +
+        "</li>"
+      );
+    })
+    .join("");
+}
+
+// 距離を読みやすく整形(1km以上はkm表記)
+function formatDistance(m) {
+  if (m >= 1000) return (m / 1000).toFixed(m >= 10000 ? 0 : 1) + " km";
+  return Math.round(m) + " m";
+}
+
 function setNearestName(name) {
   const el = $("nearest-name");
   el.textContent = name;

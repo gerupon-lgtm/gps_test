@@ -56,3 +56,25 @@ function findEnterableSpot(currentPosition, spots, accuracy) {
   }
   return best;
 }
+
+// 2点間の方位角(度, 0=北, 時計回り)を返す
+function calculateBearing(lat1, lng1, lat2, lng2) {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const toDeg = (rad) => (rad * 180) / Math.PI;
+  const dLng = toRad(lng2 - lng1);
+  const y = Math.sin(dLng) * Math.cos(toRad(lat2));
+  const x =
+    Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+    Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLng);
+  return (toDeg(Math.atan2(y, x)) + 360) % 360;
+}
+
+// 方位角を8方位の日本語(矢印付き)に変換
+function bearingToCompass(deg) {
+  const dirs = [
+    "北 ↑", "北東 ↗", "東 →", "南東 ↘",
+    "南 ↓", "南西 ↙", "西 ←", "北西 ↖",
+  ];
+  const idx = Math.round(deg / 45) % 8;
+  return dirs[idx];
+}

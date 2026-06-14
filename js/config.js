@@ -21,6 +21,10 @@ const CONFIG = {
   // 勝利後、同じスポットの敵が再出現しないクールダウン時間(分)
   VICTORY_COOLDOWN_MINUTES: 60,
 
+  // 撃破済み(クールダウン中)のスポットは、この距離(m)以内に入らないと
+  // 「最寄りスポット」として表示しない
+  DEFEATED_HIDE_WITHIN_METERS: 10,
+
   // 地図のデフォルト拡大率(大きいほど拡大)
   MAP_DEFAULT_ZOOM: 19,
 
