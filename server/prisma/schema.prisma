@@ -1,0 +1,127 @@
+// Prisma スキーマ(案A / PostgreSQL)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  loginId      String    @unique
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  player       Player?
+  sessions     Session[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Player {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  level     Int      @default(1)
+  exp       Int      @default(0)
+  hp        Int      @default(100)
+  maxHp     Int      @default(100)
+  attack    Int      @default(15)
+  defense   Int      @default(3)
+  gold      Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  items      PlayerItem[]
+  spotStates PlayerSpotState[]
+  listings   MarketListing[]   @relation("seller")
+  battleLogs BattleLog[]
+}
+
+model ItemMaster {
+  itemId      String  @id
+  name        String
+  description String  @default("")
+  rarity      String  @default("normal")
+  type        String  @default("misc")
+  basePrice   Int     @default(0)
+  playerItems PlayerItem[]
+  listings    MarketListing[]
+}
+
+model EnemyMaster {
+  enemyId    String @id
+  name       String
+  hp         Int
+  attack     Int
+  defense    Int
+  image      String @default("")
+  spots      SpotMaster[]
+  battleLogs BattleLog[]
+}
+
+model SpotMaster {
+  spotId       String  @id
+  name         String
+  lat          Float
+  lng          Float
+  radiusM      Int     @default(50)
+  enemyId      String
+  enemy        EnemyMaster @relation(fields: [enemyId], references: [enemyId])
+  rewardItemId String
+  penaltyMin   Int     @default(5)
+  active       Boolean @default(true)
+  spotStates   PlayerSpotState[]
+}
+
+model PlayerItem {
+  id       String @id @default(cuid())
+  playerId String
+  player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  itemId   String
+  item     ItemMaster @relation(fields: [itemId], references: [itemId])
+  qty      Int    @default(1)
+  @@unique([playerId, itemId])
+}
+
+model PlayerSpotState {
+  playerId     String
+  player       Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  spotId       String
+  spot         SpotMaster @relation(fields: [spotId], references: [spotId])
+  penaltyUntil DateTime?
+  victoryUntil DateTime?
+  @@id([playerId, spotId])
+}
+
+model MarketListing {
+  id        String   @id @default(cuid())
+  sellerId  String
+  seller    Player   @relation("seller", fields: [sellerId], references: [id])
+  itemId    String
+  item      ItemMaster @relation(fields: [itemId], references: [itemId])
+  qty       Int
+  price     Int
+  status    String   @default("open") // open / sold / cancelled
+  buyerId   String?
+  createdAt DateTime @default(now())
+  soldAt    DateTime?
+}
+
+model BattleLog {
+  id        String   @id @default(cuid())
+  playerId  String
+  player    Player   @relation(fields: [playerId], references: [id])
+  enemyId   String
+  enemy     EnemyMaster @relation(fields: [enemyId], references: [enemyId])
+  spotId    String
+  result    String
+  createdAt DateTime @default(now())
+}
