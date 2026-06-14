@@ -12,6 +12,11 @@ let _mockOnSuccess = null;
 // モック位置をセット/解除(テスト機能から呼ぶ)
 function setMockPosition(latitude, longitude, accuracy) {
   _mockPosition = { latitude, longitude, accuracy };
+  // 実GPSの監視が動いていたら止める(直後の実GPS更新でモックが上書きされるのを防ぐ)
+  if (_watchId !== null) {
+    navigator.geolocation.clearWatch(_watchId);
+    _watchId = null;
+  }
   if (_mockOnSuccess) {
     _mockOnSuccess({
       latitude: _mockPosition.latitude,

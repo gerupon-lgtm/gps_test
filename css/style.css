@@ -126,22 +126,30 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 .nearest-label { font-size: 0.78rem; color: var(--muted); }
 .nearest-row {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
 .nearest-name {
-  font-size: 1.6rem;
+  font-size: 1.5rem;
   font-weight: 800;
-  line-height: 1.2;
+  line-height: 1.25;
   flex: 1 1 auto;
   min-width: 0;
+  /* 長い名前は折り返して最大2行。超過は…で省略 */
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
+/* 名前が長い(全角9文字以上を目安)ときはさらに縮小する補助クラス */
+.nearest-name.is-long { font-size: 1.15rem; }
+.nearest-name.is-xlong { font-size: 0.98rem; }
 .nearest-dist {
-  font-size: 1.5rem;
+  font-size: 1.35rem;
   font-weight: 800;
   color: var(--primary);
   font-variant-numeric: tabular-nums;

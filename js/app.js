@@ -68,7 +68,9 @@ function bindEvents() {
   $("btn-apply-mock").addEventListener("click", applyMockFromInputs);
   $("btn-clear-mock").addEventListener("click", () => {
     clearMockPosition();
-    $("debug-status").textContent = "モック解除。実GPSを使用します(再取得は開始ボタン)";
+    $("debug-status").textContent = "モック解除。実GPSの取得を再開しました";
+    // 実GPSの監視を再開(モック設定時に停止しているため)
+    startWatchPosition(onPositionUpdate, onPositionError);
   });
   $("btn-clear-storage").addEventListener("click", () => {
     clearDebugData();
@@ -129,7 +131,7 @@ function updateExplore(pos) {
   updateMapPosition(pos.latitude, pos.longitude, pos.accuracy);
 
   if (!App.data || App.data.spots.length === 0) {
-    $("nearest-name").textContent = "-";
+    setNearestName("-");
     $("nearest-dist").textContent = "-";
     setJudge("", "");
     hideEnemyArea();
@@ -153,10 +155,10 @@ function updateExplore(pos) {
     } else {
       status = "範囲外";
     }
-    $("nearest-name").textContent = nearest.spot.spot_name;
+    setNearestName(nearest.spot.spot_name);
     $("nearest-dist").textContent = d + " m(" + status + ")";
   } else {
-    $("nearest-name").textContent = "-";
+    setNearestName("-");
     $("nearest-dist").textContent = "-";
   }
 
@@ -210,6 +212,16 @@ function updateExplore(pos) {
   clearWaitTimer();
   setJudge("", "");
   showEnemyArea(spot, enemy);
+}
+
+// 最寄りスポット名を表示。長さに応じてフォントを縮小する。
+function setNearestName(name) {
+  const el = $("nearest-name");
+  el.textContent = name;
+  el.classList.remove("is-long", "is-xlong");
+  const len = Array.from(name).length;
+  if (len >= 13) el.classList.add("is-xlong");
+  else if (len >= 9) el.classList.add("is-long");
 }
 
 function setJudge(state, detail) {
