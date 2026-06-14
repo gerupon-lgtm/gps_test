@@ -31,7 +31,7 @@ const CONFIG = {
   // 地図のスタイル(MapTilerのスタイルID)。例:
   //   streets-v2 / basic-v2 / bright-v2 / topo-v2 / outdoor-v2
   //   dataviz / dataviz-dark / toner-v2 / winter-v2 / openstreetmap
-  MAP_STYLE: "outdoor-v4",
+  MAP_STYLE: "aquarelle-v4",
 
   // Geolocation API のオプション
   GEO_OPTIONS: {
