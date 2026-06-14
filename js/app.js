@@ -63,6 +63,11 @@ function bindEvents() {
     updateExplore(App.lastPosition);
   });
   $("btn-start-battle").addEventListener("click", onStartBattle);
+  $("btn-recenter").addEventListener("click", () => {
+    if (!recenterMap()) {
+      $("geo-error").textContent = "現在地がまだ取得できていません";
+    }
+  });
   $("btn-spot-list").addEventListener("click", openSpotList);
   $("btn-spot-list-close").addEventListener("click", closeSpotList);
   $("spot-list-modal").addEventListener("click", (e) => {

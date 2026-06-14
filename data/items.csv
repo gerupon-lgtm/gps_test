@@ -1,3 +1,11 @@
 item_id,item_name,description,rarity
-item_001,テストポーション,検証用の回復アイテム,normal
-item_002,テストメダル,検証用の収集アイテム,rare
+item_001,ポーション,HPを回復する基本的な薬,normal
+item_002,記念メダル,収集用のメダル,rare
+item_003,薬草,どこにでもある回復の葉,normal
+item_004,エリクサー,あらゆる傷を癒す霊薬,epic
+item_005,金貨,街で使える通貨,normal
+item_006,古代のコイン,失われた文明の硬貨,rare
+item_007,魔法の石,魔力を秘めた鉱石,rare
+item_008,ドラゴンの牙,竜から採れる希少素材,epic
+item_009,銀の鍵,どこかの扉を開く鍵,normal
+item_010,星のかけら,夜空から落ちた輝き,legendary

@@ -69,12 +69,14 @@ function calculateBearing(lat1, lng1, lat2, lng2) {
   return (toDeg(Math.atan2(y, x)) + 360) % 360;
 }
 
-// 方位角を8方位の日本語(矢印付き)に変換
+// 方位角を16方位の日本語(矢印付き)に変換
 function bearingToCompass(deg) {
   const dirs = [
-    "北 ↑", "北東 ↗", "東 →", "南東 ↘",
-    "南 ↓", "南西 ↙", "西 ←", "北西 ↖",
+    "北 ↑", "北北東 ↑", "北東 ↗", "東北東 ↗",
+    "東 →", "東南東 ↘", "南東 ↘", "南南東 ↓",
+    "南 ↓", "南南西 ↓", "南西 ↙", "西南西 ↙",
+    "西 ←", "西北西 ↖", "北西 ↖", "北北西 ↑",
   ];
-  const idx = Math.round(deg / 45) % 8;
+  const idx = Math.round(deg / 22.5) % 16;
   return dirs[idx];
 }

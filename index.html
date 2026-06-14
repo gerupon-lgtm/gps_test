@@ -82,8 +82,11 @@
 
     <p id="geo-error" class="error-text"></p>
 
-    <!-- 3. 地図(大きく) -->
-    <div id="map" class="map"></div>
+    <!-- 3. 地図(大きく) + 現在地に戻るボタン -->
+    <div class="map-wrap">
+      <div id="map" class="map"></div>
+      <button id="btn-recenter" class="map-recenter" title="現在地に戻る">📍 現在地</button>
+    </div>
 
     <!-- 4. 座標などの詳細(下部・デフォルト閉じる) -->
     <details class="coords-box">

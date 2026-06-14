@@ -1,3 +1,11 @@
 enemy_id,enemy_name,hp,attack,defense,image
-enemy_001,テストスライム,30,8,2,assets/enemy_slime.png
-enemy_002,テストゴーレム,60,12,5,assets/enemy_golem.png
+enemy_001,スライム,30,8,2,assets/enemy_slime.png
+enemy_002,ゴーレム,60,12,5,assets/enemy_golem.png
+enemy_003,コウモリ,20,10,1,assets/enemy_bat.png
+enemy_004,スケルトン,40,11,3,assets/enemy_skeleton.png
+enemy_005,ゴースト,35,13,2,assets/enemy_ghost.png
+enemy_006,オーク,70,14,6,assets/enemy_orc.png
+enemy_007,キノコ,25,7,4,assets/enemy_mushroom.png
+enemy_008,ドラゴン,75,14,7,assets/enemy_dragon.png
+enemy_009,クラブ,50,10,6,assets/enemy_crab.png
+enemy_010,デビル,65,13,5,assets/enemy_devil.png
