@@ -26,7 +26,7 @@ const CONFIG = {
   DEFEATED_HIDE_WITHIN_METERS: 10,
 
   // 地図のデフォルト拡大率(大きいほど拡大)
-  MAP_DEFAULT_ZOOM: 19,
+  MAP_DEFAULT_ZOOM: 18,
 
   // 地図のスタイル(MapTilerのスタイルID)。例:
   //   streets-v2 / basic-v2 / bright-v2 / topo-v2 / outdoor-v2
