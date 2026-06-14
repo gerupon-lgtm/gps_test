@@ -1,8 +1,9 @@
 // =====================================================
 // map.js
 // Leaflet で「自分の現在地」のみ表示する。
-// タイルは window.MAP_KEY があれば MapTiler、無ければ OSM にフォールバック。
-// (MAP_KEY は js/map-key.js で定義。Gitには含めない=ビルド時/手元で注入)
+// タイルは window.MAP_KEY があれば MapTiler、無ければ OSM。
+// MapTilerのタイル取得が失敗(上限超過/キー無効/障害)した場合は
+// OSM へ自動フォールバックする。
 // スポットのピンは置かない(距離は数字でのみ表示)。
 // =====================================================
 
@@ -12,33 +13,53 @@ let _accCircle = null;
 let _mapInited = false;
 let _lastLL = null;
 
+let _tileLayer = null;       // 現在のタイルレイヤー
+let _usingFallback = false;  // OSMフォールバック済みフラグ
+let _tileErrorCount = 0;     // タイル取得エラー回数
+
 function isLeafletReady() {
   return typeof L !== "undefined";
 }
 
-// 使用するタイルレイヤーを返す(MapTiler優先・OSMフォールバック)
-function buildTileLayer() {
-  const key = (typeof window !== "undefined" && window.MAP_KEY) ? window.MAP_KEY : "";
-  if (key) {
-    // MapTiler ラスタタイル(512px) → Leaflet用に tileSize/zoomOffset を調整
-    return L.tileLayer(
-      "https://api.maptiler.com/maps/" + (CONFIG.MAP_STYLE || "streets-v2") + "/{z}/{x}/{y}.png?key=" + key,
-      {
-        tileSize: 512,
-        zoomOffset: -1,
-        minZoom: 1,
-        maxZoom: 20,
-        attribution:
-          '&copy; <a href="https://www.maptiler.com/copyright/">MapTiler</a> ' +
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        crossOrigin: true,
-      }
-    );
-  }
-  // フォールバック: OSM公開タイル(開発・キー未設定時のみ)
+// MapTilerのタイルレイヤー
+function maptilerLayer(key) {
+  return L.tileLayer(
+    "https://api.maptiler.com/maps/" + (CONFIG.MAP_STYLE || "streets-v4") +
+      "/{z}/{x}/{y}.png?key=" + key,
+    {
+      tileSize: 512,
+      zoomOffset: -1,
+      minZoom: 1,
+      maxZoom: 20,
+      attribution:
+        '&copy; <a href="https://www.maptiler.com/copyright/">MapTiler</a> ' +
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      crossOrigin: true,
+    }
+  );
+}
+
+// OSMのタイルレイヤー(フォールバック/キー未設定時)
+function osmLayer() {
   return L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     attribution: "&copy; OpenStreetMap contributors",
+  });
+}
+
+// MapTilerのタイルエラーを監視し、一定回数失敗したらOSMへ切替
+function attachFallback(layer) {
+  const key = (typeof window !== "undefined" && window.MAP_KEY) ? window.MAP_KEY : "";
+  if (!key) return; // すでにOSMなら不要
+  layer.on("tileerror", () => {
+    _tileErrorCount++;
+    // 数枚連続で失敗 = 上限超過/キー無効/障害とみなしてOSMへ
+    if (!_usingFallback && _tileErrorCount >= 3) {
+      _usingFallback = true;
+      try { _map.removeLayer(layer); } catch (e) {}
+      osmLayer().addTo(_map);
+      console.warn("MapTilerのタイル取得に失敗したため、OSMにフォールバックしました。");
+    }
   });
 }
 
@@ -48,7 +69,10 @@ function initMap() {
     [35.01476933763732, 136.66082076514405],
     CONFIG.MAP_DEFAULT_ZOOM
   );
-  buildTileLayer().addTo(_map);
+  const key = (typeof window !== "undefined" && window.MAP_KEY) ? window.MAP_KEY : "";
+  _tileLayer = key ? maptilerLayer(key) : osmLayer();
+  attachFallback(_tileLayer);
+  _tileLayer.addTo(_map);
   _mapInited = true;
 }
 
