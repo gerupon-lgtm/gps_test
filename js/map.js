@@ -22,7 +22,7 @@ function buildTileLayer() {
   if (key) {
     // MapTiler ラスタタイル(512px) → Leaflet用に tileSize/zoomOffset を調整
     return L.tileLayer(
-      "https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=" + key,
+      "https://api.maptiler.com/maps/" + (CONFIG.MAP_STYLE || "streets-v2") + "/{z}/{x}/{y}.png?key=" + key,
       {
         tileSize: 512,
         zoomOffset: -1,

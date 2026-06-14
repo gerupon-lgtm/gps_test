@@ -28,6 +28,11 @@ const CONFIG = {
   // 地図のデフォルト拡大率(大きいほど拡大)
   MAP_DEFAULT_ZOOM: 19,
 
+  // 地図のスタイル(MapTilerのスタイルID)。例:
+  //   streets-v2 / basic-v2 / bright-v2 / topo-v2 / outdoor-v2
+  //   dataviz / dataviz-dark / toner-v2 / winter-v2 / openstreetmap
+  MAP_STYLE: "streets-v4",
+
   // Geolocation API のオプション
   GEO_OPTIONS: {
     enableHighAccuracy: true,
