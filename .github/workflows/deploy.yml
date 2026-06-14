@@ -1,0 +1,42 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]      # デフォルトブランチに合わせる(master なら変更)
+  workflow_dispatch:         # 手動実行も可能
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Secret から MapTiler キーを生成(リポジトリには残らない)
+      # ログにキーを出さないようファイルへ直接書き込む
+      - name: Inject MapTiler key
+        run: echo "window.MAP_KEY = \"${{ secrets.MAPTILER_KEY }}\";" > js/map-key.js
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'           # リポジトリ直下を丸ごと公開(index.html がルート)
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
