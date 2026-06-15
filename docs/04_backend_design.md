@@ -1,5 +1,7 @@
 # GPS連動ブラウザゲーム 本番版 バックエンド設計書(案A)
 
+> **最新の実装(as-built)は `docs/06_gameplay_extension.md` §9 と実コード(`server/prisma/schema.prisma` / `server/src/index.js`)を正とする。** 本書 §5(スキーマ案)・§6(API案)は初期設計で実装と一部異なる(例: `dropJson`→`dropItemId`/`dropRate`、`CurrencyLedger`/`/api/master` は未実装、battle/inn/shop/location 等のAPIを追加)。下記『実装済みエンドポイント一覧』参照。
+
 ## 1. 文書情報
 
 | 項目 | 内容 |
@@ -418,3 +420,18 @@ POST /api/items/use
 | ドロップテーブル | enemy ごとの確率設計 |
 | 宿屋料金 | 固定かレベル連動か(通貨シンクの強さ) |
 | マスタ更新運用 | 管理画面を作るか、seed/SQL直編集で回すか |
+
+---
+
+## 実装済みエンドポイント一覧(as-built / 2026-06-15)
+
+- 認証: `POST /api/auth/register|login|logout`, `GET /api/me`(HP/Lv/EXP/gold/毒/戦闘不能/innCostPerLevel 等を返す)
+- 位置: `POST /api/location`(散策拾い抽選を内包), `POST /api/location/share`
+- 戦闘(ターン制・サーバー権威): `POST /api/battle/start`, `POST /api/battle/action`(attack|useItem), `GET /api/battle/current`(復帰)。※旧 `POST /api/battle`(一括)は残置・未使用
+- 回復/状態: `POST /api/item/use`(回復/毒消し), `GET /api/spot-states`(クールダウン)
+- 宿屋: `GET /api/inns`, `POST /api/inn/rest`(費用=level×INN_COST_PER_LEVEL)
+- 道具屋: `GET /api/shops`, `GET /api/shop/items`, `POST /api/shop/buy`, `POST /api/shop/sell`
+- 在庫/マーケット: `GET /api/inventory`, `GET /api/market`, `POST /api/market/list|buy|cancel`
+- ヘルス: `GET /api/health`
+
+確定スキーマは `server/prisma/schema.prisma` を正とする(User/Session/Player/ItemMaster/EnemyMaster/SpotMaster/InnMaster/ShopMaster/PlayerItem/PlayerSpotState/MarketListing/BattleLog/BattleSession)。各機能の確定挙動・パラメータは `docs/06_gameplay_extension.md` §9。

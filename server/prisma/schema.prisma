@@ -49,6 +49,7 @@ model Player {
   poisonTickAt  DateTime?   // 毒ダメージの遅延計算起点
   downedUntil   DateTime?   // 戦闘不能(グローバル)の解除時刻。経過後に回復して復帰
   lastPickupAt  DateTime?   // 散策拾いのクールダウン基準
+  defeatedSpots String   @default("")  // 撃破済みスポットID(カンマ区切り・1レコード)
 
   items      PlayerItem[]
   spotStates PlayerSpotState[]

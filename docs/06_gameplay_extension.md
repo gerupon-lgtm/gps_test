@@ -162,3 +162,88 @@ BATTLE_USE_RANDOM=false   # 戦闘ダメージに乱数を使うか
    バランス(.env)調整、ドキュメント反映、検証。
 
 各Phaseごとに「サーバー→フロント→VMデプロイ→動作確認」を回す。
+
+---
+
+## 9. 実装実績（as-built / 2026-06-15）
+
+Phase A〜E を実装・デプロイ済み。本節は**実際の挙動・確定値・UX**を記録する（本書 §1-8 の設計に対する確定版）。
+
+### 9.1 戦闘(ターン制・サーバー権威)
+- エンドポイント: `POST /api/battle/start` / `POST /api/battle/action`(action=`attack`|`useItem`) / `GET /api/battle/current`(リロード復帰)。旧 `POST /api/battle`(一括)は未使用だが残置。
+- サーバーが `BattleSession` で状態保持(同時1戦闘)。HPは戦闘中も `Player.hp` を直接更新。
+- 勝利: EXP=`expBase×(1±BONUS_RANGE)`、ゴールド=`goldBase×(1±BONUS_RANGE)` を加算。報酬=スポット固定 `rewardItemId` + 敵 `dropItemId` を `dropRate` 抽選(併用・クールダウン非適用)。`victoryUntil` 設定。レベルアップ判定(下記)。
+- 敗北: `hp=0`、`downedUntil=now+DOWNED_MIN`(=戦闘不能。§9.4)。
+- 戦闘中アイテム: 回復(HP)・毒消しを使用可。フロントは「攻撃／アイテム」ボタンでターン進行、サーバーの結果を反映。
+
+### 9.2 レベル・成長(数式)
+- 必要EXP(Lv→Lv+1)=`level×LEVEL_EXP_FACTOR`。超過分は繰越。
+- レベルアップで `maxHp+=LV_HP / attack+=LV_ATK / defense+=LV_DEF`、**HP全回復**。
+- `/api/me` は `level/exp/nextExp` を返す。
+
+### 9.3 ステータス:毒
+- 付与: 敵反撃時に `poisonChance` 判定。`poisoned=true`。
+- ダメージ: `refreshPlayerState` が `POISON_INTERVAL_SEC` ごとに `POISON_DMG` を遅延適用。**最低HP1**(毒で戦闘不能にならない)。/api/me・戦闘入室・各操作時に反映。アプリ非起動中も時間進行。
+- 解除: `どくけしそう`(curePoison) / `エリクサー` / **宿屋**。
+- 救済: 散策拾いで毒中は antidote を `ANTIDOTE_BOOST` 倍で抽選(ドロップには非適用)。
+
+### 9.4 戦闘不能(グローバル)
+- 敗北で発生。`downedUntil` まで**全スポットで戦闘不可・散策拾いも対象外**。
+- フロントは全画面オーバーレイで**残り秒数をカウントダウン**。経過で `hp=round(maxHp×DEFEAT_HEAL_PERCENT)` に回復して自動復帰(`/api/me` 取得)。宿屋でも即解除。
+
+### 9.5 散策拾い・ドロップ
+- 散策拾い: `POST /api/location` 内で抽選。条件=戦闘不能でない & `lastPickupAt` から `PICKUP_COOLDOWN_MIN` 経過 & `PICKUP_BASE_RATE`。対象=回復/毒消し。取得はトーストで通知し在庫更新。
+- 敵ドロップ: 勝利時に `dropRate`。**散策クールダウン非適用**(常に同確率)。
+
+### 9.6 宿屋(マップアイコン)
+- マップに 🛏(白地・緑枠)アイコン。タップ→ポップアップ「休む」。**10m以内(`CHECKIN_DISTANCE_METERS`)** で実行可。
+- 効果: HP全回復+毒解除+戦闘不能解除。費用=**`level×INN_COST_PER_LEVEL` G**(不足時は不可)。利用後ポップアップを閉じる。
+- API: `POST /api/inn/rest`(cost/gold を返す)、`GET /api/inns`。
+
+### 9.7 道具屋(マップアイコン)
+- マップに 🛒(白地・青枠)アイコン。タップ→ポップアップ「入店」(10m以内)→**売買モーダル**。
+- 買う(回復系のみ・在庫無限)=`basePrice`、売る=`floor(basePrice×SELL_RATE)`。
+- **確認ダイアログ**: 「『○○』を ○G で買い/売りますか？ はい／いいえ」。
+- API: `GET /api/shops` / `GET /api/shop/items` / `POST /api/shop/buy` / `POST /api/shop/sell`。
+
+### 9.8 UI/UX
+- **ステータスHUD**: 地図右上にDQ風ウィンドウ(半透明)。名前/Lv/HPバー/G/毒バッジ。**タップでコマンドメニュー**(どうぐ／つよさ／とじる)。「どうぐ」で所持品から回復/毒消しを使用。
+- **マップ**: 宿屋/道具屋はアイコン表示+凡例(明色文字)。敵スポットは地図に出さない。**ユーザーが地図を動かすと自動追従停止**、「📍現在地」で再追従。
+- **クールダウン表示**: メイン画面の撃破後カウントダウンは廃止。**スポット一覧**で「撃破済み 残り○分」(開いた時点・自動更新なし)。
+- **在庫同期**: 売買・道具使用後はトップ画面の所持品数も即時再描画。
+- 認証はオーバーレイ(同一オリジン Cookie)。ヘッダーのログイン名表示は廃止(HUDに集約)。
+
+### 9.9 チューニング(`server/.env`)
+```
+VICTORY_COOLDOWN_MIN=60   DEFEAT_HEAL_PERCENT=0.3   BONUS_RANGE=0.2
+LEVEL_EXP_FACTOR=100      LV_HP=10  LV_ATK=2  LV_DEF=1
+POISON_INTERVAL_SEC=30    POISON_DMG=1             ANTIDOTE_BOOST=2
+DOWNED_MIN=1              PICKUP_BASE_RATE=0.03    PICKUP_COOLDOWN_MIN=5
+SELL_RATE=0.5            INN_COST_PER_LEVEL=5
+BATTLE_USE_RANDOM=false   BATTLE_RANDOM_RANGE=0.2
+```
+クライアント側(`js/config.js`): `CHECKIN_DISTANCE_METERS=10`、`LOCATION_REPORT_INTERVAL_MS=30000`。
+
+### 9.10 データ(マスタ)
+- `enemies.csv`: 10体。`exp_base/gold_base/drop_item_id/drop_rate/poison_chance` 設定済み。
+- `items.csv`: 11種。`category(heal/antidote/material/currency/collectible)/cure_poison/price(=basePrice)/heal/sellable`。`item_011 どくけしそう`(antidote)追加。買える=heal/antidote。
+- `inns.csv`/`shops.csv`: 9地域×各5件(宿屋45・道具屋45)。既存スポット近傍の概算座標(ゲーム名+地域名)。**川越豊田・高野口は基準スポット無しの概算=要・実地点ピン確認**。
+- 反映2経路: seed→DB(サーバー権威) と CSV直配信(フロント近接/マーカー)。編集時は `npm run seed` と `cp -r data /var/www/game/` の**両方**が必要。
+
+### 9.11 現行デプロイ手順
+スキーマ変更が無い更新は db push 不要。
+```bash
+# API更新時
+cd ~/app/game/server && git pull && sudo systemctl restart gameapi
+# データ更新時(マスタCSVを変えた場合)
+cd ~/app/game/server && npm run seed
+# フロント更新時
+cd ~/app/game && sudo cp -r index.html css js data assets /var/www/game/
+```
+スキーマを変えた場合のみ追加で `npx prisma generate && npx prisma db push`。
+
+### 9.12 残課題・今後
+- 宿屋/道具屋の**実施設座標**への差し替え(現状概算)。
+- マスタの CSV→API 一本化(二重管理の解消)。
+- 「近くのプレイヤー」`GET /api/players/nearby`(`shareLocation`+`lastSeenAt`、距離概算)。
+- 数量選択(道具屋), 戦闘の逃走, 宿屋費用の事前表示 など。

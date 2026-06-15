@@ -61,6 +61,7 @@ async function init() {
   bindEvents();
   buildSpotJumpList();
   if (App.data) setPois(App.data.inns, App.data.shops);
+  refreshDefeatedSpots();
   updateDownedOverlay();
   resumeBattleIfAny();
 }
@@ -585,10 +586,23 @@ function handleWin(win) {
   const parts = ["勝利! EXP+" + (win ? win.expGain : 0) + " / " + (win ? win.goldGain : 0) + "G"];
   if (win && win.leveledUp) parts.push("レベルアップ! Lv" + win.level + "(HP全回復)");
   if (win && win.rewards && win.rewards.length) parts.push("入手: " + win.rewards.map((r) => r.name).join("、"));
+  if (win && win.repeat) parts.push("(撃破済み: 報酬減)");
   $("battle-reward").textContent = parts.join(" / ");
   show("battle-reward");
   renderItems();
   updateHpDisplay();
+  refreshDefeatedSpots();
+}
+
+// 撃破済みスポットをマップに反映
+async function refreshDefeatedSpots() {
+  if (!App.data) return;
+  let ids = [];
+  try { ids = await API.defeatedSpots(); } catch (e) { return; }
+  const set = {};
+  (ids || []).forEach((id) => { set[id] = true; });
+  const list = (App.data.spots || []).filter((sp) => set[sp.spot_id]);
+  if (typeof setDefeatedSpots === "function") setDefeatedSpots(list);
 }
 
 function handleLose(r) {
@@ -778,6 +792,7 @@ function renderMenuRoot() {
     '<ul class="dq-list">' +
       '<li data-cmd="item">どうぐ</li>' +
       '<li data-cmd="status">つよさ</li>' +
+      '<li data-cmd="friends">なかま</li>' +
       '<li data-cmd="close">とじる</li>' +
     '</ul>';
 }
@@ -819,6 +834,26 @@ function renderStatus() {
     '<ul class="dq-list"><li data-cmd="back">もどる</li></ul>';
 }
 
+async function renderFriends() {
+  let list = [];
+  try { list = await API.playersNearby(); } catch (e) { list = []; }
+  const pos = App.lastPosition;
+  let rows;
+  if (!list || !list.length) {
+    rows = '<li class="dq-empty">だれもいない</li>';
+  } else {
+    list.forEach((f) => { f._d = pos ? calculateDistanceMeters(pos.latitude, pos.longitude, f.lat, f.lng) : null; });
+    if (pos) list.sort((a, b) => a._d - b._d);
+    rows = list.map((f) => {
+      const dist = f._d == null ? "?" : (f._d >= 1000 ? (f._d / 1000).toFixed(1) + "km" : Math.round(f._d) + "m");
+      return '<li class="dq-flat">' + _esc(f.name) + ' <span class="dq-qty">Lv' + (f.level || 1) + '</span> <span class="dq-eff">' + dist + '</span></li>';
+    }).join("");
+  }
+  $("menu-content").innerHTML =
+    '<div class="dq-title">なかま</div><ul class="dq-list">' + rows + '</ul>' +
+    '<ul class="dq-list"><li data-cmd="back">もどる</li></ul>';
+}
+
 async function onMenuClick(e) {
   const li = e.target.closest("li");
   if (!li) return;
@@ -827,6 +862,7 @@ async function onMenuClick(e) {
   if (cmd === "back") { $("menu-msg").textContent = ""; renderMenuRoot(); return; }
   if (cmd === "item") { renderItemMenu(); return; }
   if (cmd === "status") { renderStatus(); return; }
+  if (cmd === "friends") { renderFriends(); return; }
   if (li.dataset.use) {
     try {
       const r = await API.useItem(li.dataset.use);

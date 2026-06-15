@@ -171,3 +171,19 @@ function setPois(inns, shops) {
   _poiLayer.addTo(_map);
 }
 function closePoiPopups() { if (_map) _map.closePopup(); }
+
+// 撃破済みスポット(灰の⚔アイコン)
+let _defeatedLayer = null;
+function setDefeatedSpots(spots) {
+  if (!isLeafletReady()) return;
+  if (!_mapInited) initMap();
+  if (!_map) return;
+  if (_defeatedLayer) { try { _map.removeLayer(_defeatedLayer); } catch (e) {} }
+  _defeatedLayer = L.layerGroup();
+  (spots || []).forEach(function (sp) {
+    if (sp.latitude == null || sp.longitude == null) return;
+    L.marker([sp.latitude, sp.longitude], { icon: _poiIcon("⚔", "#9ca3af") })
+      .bindPopup("⚔ " + _escapeHtml(sp.spot_name) + "(撃破済み)").addTo(_defeatedLayer);
+  });
+  _defeatedLayer.addTo(_map);
+}

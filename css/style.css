@@ -566,3 +566,7 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 .shop-confirm.hidden { display: none; }
 #shop-confirm-msg { font-size: 1rem; margin: 0; }
 .shop-confirm-btns { display: flex; gap: 1rem; }
+
+/* なかま/情報行(選択不可) */
+.dq-list li.dq-flat { cursor: default; }
+.dq-list li.dq-flat::before { content: ""; }
