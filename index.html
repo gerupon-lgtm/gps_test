@@ -5,16 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <title>GPS連動ブラウザゲーム 検証版</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
-  <link rel="stylesheet" href="./css/style.css?v=14" />
+  <link rel="stylesheet" href="./css/style.css?v=15" />
 </head>
 <body>
-  <header class="app-header">
-    <h1>GPS連動ブラウザゲーム <span class="badge">検証版</span></h1>
-    <div class="header-right">
-      <button id="btn-logout" class="auth-logout" title="ログアウト">ログアウト</button>
-      <button id="debug-toggle" class="debug-toggle" title="テスト機能">🛠 テスト</button>
-    </div>
-  </header>
 
   <!-- ===== 認証オーバーレイ(未ログイン時に表示) ===== -->
   <div id="auth-overlay" class="auth-overlay hidden">
@@ -231,6 +224,15 @@
   <footer class="app-footer">
     <p class="muted small">PoC / 技術検証版 — OCI(Caddy同一オリジン) + Geolocation API + サーバーAPI(認証/取引/位置)</p>
   </footer>
+
+  <!-- タイトル/ログアウト/テスト(最下部・非固定) -->
+  <header class="app-header app-header-bottom">
+    <h1>GPS連動ブラウザゲーム <span class="badge">検証版</span></h1>
+    <div class="header-right">
+      <button id="btn-logout" class="auth-logout" title="ログアウト">ログアウト</button>
+      <button id="debug-toggle" class="debug-toggle" title="テスト機能">🛠 テスト</button>
+    </div>
+  </header>
 
   <!-- Leaflet(地図ライブラリ) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
