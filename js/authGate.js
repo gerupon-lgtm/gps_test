@@ -21,12 +21,7 @@ const AuthGate = {
     }
   },
 
-  _renderStatus() {
-    const el = document.getElementById("auth-status");
-    if (el && this.player) {
-      el.textContent = this.player.name + " (G:" + this.player.gold + ")";
-    }
-  },
+  _renderStatus() { /* ステータスは地図右上HUD(updateHpDisplay)に統一 */ },
 
   _bindLogout() {
     const btn = document.getElementById("btn-logout");

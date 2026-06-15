@@ -219,7 +219,7 @@ function updateExplore(pos) {
   // 敗北ペナルティ中
   if (isPenaltyActive(spot.spot_id)) {
     const sec = getPenaltyRemainingSeconds(spot.spot_id);
-    setJudge("", "あと " + formatTime(sec) + " で再戦可能");
+    setJudge("", spot.spot_name + ": あと " + formatTime(sec) + " で再戦可能");
     hideEnemyArea();
     startWaitCountdown(spot, pos, "penalty");
     return;
@@ -228,7 +228,7 @@ function updateExplore(pos) {
   // 勝利クールダウン中(撃破後の再出現待ち)
   if (isVictoryCooldownActive(spot.spot_id)) {
     const sec = getVictoryRemainingSeconds(spot.spot_id);
-    setJudge("", "あと " + formatTime(sec) + " で敵が再出現");
+    setJudge("", spot.spot_name + ": あと " + formatTime(sec) + " で敵が再出現");
     hideEnemyArea();
     startWaitCountdown(spot, pos, "victory");
     return;
@@ -273,9 +273,10 @@ function findNearestForDisplay(pos) {
 }
 
 // スポット一覧モーダルを開く(近い順に名前・方位・距離)
-function openSpotList() {
-  buildSpotList();
+async function openSpotList() {
   show("spot-list-modal");
+  await refreshSpotStates();   // 開いた時点の最新状態を取得
+  buildSpotList();
 }
 
 function closeSpotList() {
@@ -314,8 +315,13 @@ function buildSpotList() {
   ul.innerHTML = rows
     .map((r) => {
       let badge = "";
-      if (isVictoryCooldownActive(r.spot.spot_id)) badge = " <span class=\"spot-badge defeated\">撃破済み</span>";
-      else if (isPenaltyActive(r.spot.spot_id)) badge = " <span class=\"spot-badge penalty\">待機中</span>";
+      if (isVictoryCooldownActive(r.spot.spot_id)) {
+        const min = Math.ceil(getVictoryRemainingSeconds(r.spot.spot_id) / 60);
+        badge = " <span class=\"spot-badge defeated\">撃破済み 残り" + min + "分</span>";
+      } else if (isPenaltyActive(r.spot.spot_id)) {
+        const min = Math.ceil(getPenaltyRemainingSeconds(r.spot.spot_id) / 60);
+        badge = " <span class=\"spot-badge penalty\">待機中 残り" + min + "分</span>";
+      }
       return (
         "<li class=\"spot-item\">" +
         "<span class=\"spot-item-name\">" + r.spot.spot_name + badge + "</span>" +
@@ -398,7 +404,7 @@ function startWaitCountdown(spot, pos, kind) {
         ? getPenaltyRemainingSeconds(spot.spot_id)
         : getVictoryRemainingSeconds(spot.spot_id);
     const word = kind === "penalty" ? "で再戦可能" : "で敵が再出現";
-    $("judge-detail").textContent = "あと " + formatTime(sec) + " " + word;
+    $("judge-detail").textContent = spot.spot_name + ": あと " + formatTime(sec) + " " + word;
   }, 1000);
 }
 
@@ -731,12 +737,6 @@ function _esc(x) {
 
 function updateHpDisplay() {
   const p = App.player;
-  const el = document.getElementById("auth-status");
-  if (el && p) {
-    const lv = p.level ? " Lv" + p.level : "";
-    const poison = p.poisoned ? " 毒" : "";
-    el.textContent = p.name + lv + " HP:" + p.hp + "/" + p.maxHp + " G:" + p.gold + poison;
-  }
   const hud = document.getElementById("status-hud");
   if (hud && p) {
     const pct = p.maxHp ? Math.max(0, Math.min(100, (p.hp / p.maxHp) * 100)) : 0;
