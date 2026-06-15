@@ -52,6 +52,7 @@ const CONFIG = {
     enemies: "./data/enemies.csv",
     items: "./data/items.csv",
     inns: "./data/inns.csv",
+    shops: "./data/shops.csv",
   },
 
   // localStorage キー

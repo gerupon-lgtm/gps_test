@@ -88,6 +88,16 @@ function normalizeInns(rows) {
   }));
 }
 
+function normalizeShops(rows) {
+  return rows.map((r) => ({
+    shop_id: r.shop_id,
+    shop_name: r.shop_name,
+    latitude: toNumberOrNull(r.latitude),
+    longitude: toNumberOrNull(r.longitude),
+    radius_meters: toNumberOrNull(r.radius_meters),
+  }));
+}
+
 // 3ファイルをまとめて読み込む
 async function loadGameData() {
   const [spotsText, enemiesText, itemsText] = await Promise.all([
@@ -109,11 +119,19 @@ async function loadGameData() {
     inns = [];
   }
 
+  let shops = [];
+  try {
+    const shopsText = await loadCsv(CONFIG.PATHS.shops);
+    shops = normalizeShops(parseCsv(shopsText));
+  } catch (e) {
+    shops = [];
+  }
+
   // インデックス化
   const enemyMap = {};
   enemies.forEach((e) => (enemyMap[e.enemy_id] = e));
   const itemMap = {};
   items.forEach((i) => (itemMap[i.item_id] = i));
 
-  return { spots, enemies, items, enemyMap, itemMap, inns };
+  return { spots, enemies, items, enemyMap, itemMap, inns, shops };
 }

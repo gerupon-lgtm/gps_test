@@ -472,3 +472,30 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 .item-use-btn:hover { background: #059669; }
 .item-use-btn:disabled { background: #9ca3af; cursor: default; }
 #items-msg { margin: 0.4rem 0 0; color: #047857; }
+
+/* ===== 戦闘中アイテム使用(Phase B) ===== */
+#btn-use-item { margin-top: 0.4rem; }
+.battle-item-list { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.5rem 0; }
+.battle-item-list.hidden { display: none; }
+.battle-item-btn { font-size: 0.8rem; padding: 0.4rem 0.7rem; border: 0; border-radius: 6px; background: #10b981; color: #fff; cursor: pointer; }
+.battle-item-btn:hover { background: #059669; }
+
+/* ===== 戦闘不能オーバーレイ / トースト / 道具屋(Phase D/E) ===== */
+.downed-overlay { position: fixed; inset: 0; z-index: 1100; background: rgba(15,23,42,0.82); display: flex; align-items: center; justify-content: center; padding: 1rem; }
+.downed-overlay.hidden { display: none; }
+.downed-card { background: #fff; color: #1e293b; border-radius: 12px; padding: 1.4rem 1.6rem; text-align: center; max-width: 340px; }
+.downed-card h2 { margin: 0 0 0.5rem; color: #dc2626; }
+.downed-count { font-weight: bold; font-size: 1.1rem; }
+.toast { position: fixed; left: 50%; bottom: 1.5rem; transform: translateX(-50%); z-index: 1200; background: #0f172a; color: #fff; padding: 0.6rem 1rem; border-radius: 8px; font-size: 0.9rem; box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+.toast.hidden { display: none; }
+.shop-area { background: #eff6ff; border: 1px solid #93c5fd; border-radius: 10px; padding: 0.7rem 0.9rem; margin: 0.5rem 0; }
+.shop-area.hidden { display: none; }
+.shop-area h3 { margin: 0 0 0.4rem; font-size: 0.95rem; color: #1d4ed8; }
+.shop-cols { display: flex; gap: 0.8rem; }
+.shop-col { flex: 1; min-width: 0; }
+.shop-col h4 { margin: 0 0 0.3rem; font-size: 0.82rem; color: #334155; }
+.shop-list { list-style: none; margin: 0; padding: 0; font-size: 0.8rem; }
+.shop-list li { display: flex; align-items: center; justify-content: space-between; gap: 0.3rem; padding: 0.15rem 0; }
+.shop-buy-btn, .shop-sell-btn { font-size: 0.72rem; padding: 0.2rem 0.5rem; border: 0; border-radius: 5px; color: #fff; cursor: pointer; }
+.shop-buy-btn { background: #2563eb; }
+.shop-sell-btn { background: #6b7280; }

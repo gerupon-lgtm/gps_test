@@ -17,6 +17,18 @@ const DEFEAT_HEAL_PERCENT = Number(process.env.DEFEAT_HEAL_PERCENT || 0.3); // �
 const BATTLE_USE_RANDOM = String(process.env.BATTLE_USE_RANDOM || "false").toLowerCase() === "true";
 const BATTLE_RANDOM_RANGE = Number(process.env.BATTLE_RANDOM_RANGE || 0.2);
 const MAX_TURNS = 500; // 戦闘の安全上限
+const BONUS_RANGE = Number(process.env.BONUS_RANGE || 0.2);        // EXP/ゴールドの乱数幅(±)
+const LEVEL_EXP_FACTOR = Number(process.env.LEVEL_EXP_FACTOR || 100); // 次Lv必要EXP = level×factor
+const LV_HP = Number(process.env.LV_HP || 10);
+const LV_ATK = Number(process.env.LV_ATK || 2);
+const LV_DEF = Number(process.env.LV_DEF || 1);
+const POISON_INTERVAL_SEC = Number(process.env.POISON_INTERVAL_SEC || 30); // 毒ダメージ間隔(秒)
+const POISON_DMG = Number(process.env.POISON_DMG || 1);                    // 毒の1tickダメージ
+const ANTIDOTE_BOOST = Number(process.env.ANTIDOTE_BOOST || 2);            // 毒中の散策antidoteブースト
+const DOWNED_MIN = Number(process.env.DOWNED_MIN || 1);                    // 戦闘不能の継続(分)
+const PICKUP_BASE_RATE = Number(process.env.PICKUP_BASE_RATE || 0.03);     // 散策拾いの基本確率
+const PICKUP_COOLDOWN_MIN = Number(process.env.PICKUP_COOLDOWN_MIN || 5);  // 散策拾いのクールダウン(分)
+const SELL_RATE = Number(process.env.SELL_RATE || 0.5);                    // 道具屋の売値(basePrice比)
 
 const app = Fastify({ logger: true });
 app.register(cookie, { secret: process.env.SESSION_SECRET || "dev-secret" });
@@ -107,14 +119,15 @@ app.post("/api/auth/logout", async (req, reply) => {
 
 app.get("/api/me", requireAuth(async (req) => {
   let pl = req.player;
-  const m = computeMaturedHeal(pl);
-  if (m.hp !== pl.hp || String(m.healAt) !== String(pl.healAt)) {
-    pl = await prisma.player.update({ where: { id: pl.id }, data: { hp: m.hp, healAt: m.healAt } });
+  const st = refreshPlayerState(pl);
+  if (stateChanged(pl, st)) {
+    pl = await prisma.player.update({ where: { id: pl.id }, data: { hp: st.hp, healAt: st.healAt, downedUntil: st.downedUntil, poisoned: st.poisoned, poisonTickAt: st.poisonTickAt } });
   }
   return {
     id: pl.id, name: pl.name, level: pl.level, exp: pl.exp,
     hp: pl.hp, maxHp: pl.maxHp, attack: pl.attack, defense: pl.defense, gold: pl.gold,
-    shareLocation: pl.shareLocation, healAt: pl.healAt,
+    shareLocation: pl.shareLocation, healAt: pl.healAt, downedUntil: pl.downedUntil, poisoned: pl.poisoned,
+    nextExp: pl.level * LEVEL_EXP_FACTOR,
   };
 }));
 
@@ -127,11 +140,35 @@ app.post("/api/location", requireAuth(async (req, reply) => {
   });
   const p = schema.safeParse(req.body);
   if (!p.success) return reply.code(400).send({ error: "緯度経度が不正です" });
+  const player = req.player;
   await prisma.player.update({
-    where: { id: req.player.id },
+    where: { id: player.id },
     data: { lastLat: p.data.lat, lastLng: p.data.lng, lastSeenAt: new Date() },
   });
-  return { ok: true };
+
+  // 散策中の取得抽選(戦闘不能中は対象外 / クールダウンあり / 毒中はantidoteブースト)
+  let pickup = null;
+  const downed = player.downedUntil && new Date(player.downedUntil) > new Date();
+  const cooled = !player.lastPickupAt || (Date.now() - new Date(player.lastPickupAt).getTime()) >= PICKUP_COOLDOWN_MIN * 60000;
+  if (!downed && cooled && Math.random() < PICKUP_BASE_RATE) {
+    const pool = await prisma.itemMaster.findMany({ where: { OR: [{ category: "heal" }, { category: "antidote" }] } });
+    if (pool.length) {
+      const weighted = [];
+      for (const it of pool) {
+        const w = (it.category === "antidote" && player.poisoned) ? ANTIDOTE_BOOST : 1;
+        for (let i = 0; i < w; i++) weighted.push(it);
+      }
+      const chosen = weighted[Math.floor(Math.random() * weighted.length)];
+      await prisma.$transaction(async (tx) => {
+        const inv = await tx.playerItem.findUnique({ where: { playerId_itemId: { playerId: player.id, itemId: chosen.itemId } } });
+        if (inv) await tx.playerItem.update({ where: { id: inv.id }, data: { qty: inv.qty + 1 } });
+        else await tx.playerItem.create({ data: { playerId: player.id, itemId: chosen.itemId, qty: 1 } });
+        await tx.player.update({ where: { id: player.id }, data: { lastPickupAt: new Date() } });
+      });
+      pickup = { itemId: chosen.itemId, name: chosen.name };
+    }
+  }
+  return { ok: true, pickup };
 }));
 
 // 位置共有のオプトイン切替
@@ -160,6 +197,34 @@ function computeMaturedHeal(player) {
     healAt = null;
   }
   return { hp, healAt };
+}
+
+// 回復(敗北明け)+毒の遅延ダメージをまとめて適用する純関数(書き込みはしない)
+function refreshPlayerState(player) {
+  let { hp, healAt } = computeMaturedHeal(player);
+  let downedUntil = player.downedUntil;
+  // 戦闘不能のクールダウン明け: MAXの一定%まで回復して復帰
+  if (downedUntil && new Date(downedUntil) <= new Date()) {
+    hp = Math.max(hp, Math.round(player.maxHp * DEFEAT_HEAL_PERCENT));
+    downedUntil = null;
+  }
+  let poisoned = player.poisoned;
+  let poisonTickAt = player.poisonTickAt;
+  if (poisoned && poisonTickAt) {
+    const base = new Date(poisonTickAt).getTime();
+    const ticks = Math.floor((Date.now() - base) / (POISON_INTERVAL_SEC * 1000));
+    if (ticks > 0) {
+      hp = Math.max(1, hp - ticks * POISON_DMG); // 毒では最低HP1
+      poisonTickAt = new Date(base + ticks * POISON_INTERVAL_SEC * 1000);
+    }
+  }
+  return { hp, healAt, downedUntil, poisoned, poisonTickAt };
+}
+
+function stateChanged(player, st) {
+  return st.hp !== player.hp || String(st.healAt) !== String(player.healAt) ||
+    String(st.downedUntil) !== String(player.downedUntil) ||
+    st.poisoned !== player.poisoned || String(st.poisonTickAt) !== String(player.poisonTickAt);
 }
 
 function computeDamage(attack, defense) {
@@ -308,29 +373,33 @@ app.post("/api/item/use", requireAuth(async (req, reply) => {
   try {
     const out = await prisma.$transaction(async (tx) => {
       const item = await tx.itemMaster.findUnique({ where: { itemId } });
-      if (!item || item.healAmount <= 0) throw new Error("NOT_HEAL_ITEM");
+      if (!item || (item.healAmount <= 0 && !item.curePoison)) throw new Error("NOT_USABLE");
       const inv = await tx.playerItem.findUnique({
         where: { playerId_itemId: { playerId, itemId } },
       });
       if (!inv || inv.qty < 1) throw new Error("NOT_OWNED");
 
       const player = await tx.player.findUnique({ where: { id: playerId } });
-      const healed = computeMaturedHeal(player);
-      if (healed.hp >= player.maxHp) throw new Error("HP_FULL");
+      const st = refreshPlayerState(player);
+      let hp = st.hp, poisoned = st.poisoned, poisonTickAt = st.poisonTickAt;
+      const msgs = [];
+      let used = false;
+      if (item.curePoison && poisoned) { poisoned = false; poisonTickAt = null; msgs.push("毒が消えた"); used = true; }
+      if (item.healAmount > 0 && hp < player.maxHp) { const b = hp; hp = Math.min(player.maxHp, hp + item.healAmount); msgs.push("HP+" + (hp - b)); used = true; }
+      if (!used) throw new Error("NOTHING_TO_DO");
 
-      const newHp = Math.min(player.maxHp, healed.hp + item.healAmount);
       if (inv.qty === 1) await tx.playerItem.delete({ where: { id: inv.id } });
       else await tx.playerItem.update({ where: { id: inv.id }, data: { qty: inv.qty - 1 } });
-      await tx.player.update({ where: { id: playerId }, data: { hp: newHp, healAt: healed.healAt } });
+      await tx.player.update({ where: { id: playerId }, data: { hp, healAt: st.healAt, downedUntil: st.downedUntil, poisoned, poisonTickAt } });
 
-      return { hp: newHp, maxHp: player.maxHp, healed: newHp - healed.hp, itemName: item.name };
+      return { hp, maxHp: player.maxHp, poisoned, itemName: item.name, message: item.name + "を使った(" + msgs.join("、") + ")" };
     });
     return { ok: true, ...out };
   } catch (e) {
     const map = {
-      NOT_HEAL_ITEM: [400, "回復アイテムではありません"],
+      NOT_USABLE: [400, "使えないアイテムです"],
       NOT_OWNED: [400, "そのアイテムを持っていません"],
-      HP_FULL: [400, "HPは満タンです"],
+      NOTHING_TO_DO: [400, "今は使う必要がありません"],
     };
     const m = map[e.message];
     if (m) return reply.code(m[0]).send({ error: m[1] });
@@ -347,7 +416,7 @@ app.post("/api/inn/rest", requireAuth(async (req, reply) => {
   if (!inn) return reply.code(404).send({ error: "宿屋が見つかりません" });
   const pl = await prisma.player.update({
     where: { id: req.player.id },
-    data: { hp: req.player.maxHp, healAt: null },
+    data: { hp: req.player.maxHp, healAt: null, downedUntil: null, poisoned: false, poisonTickAt: null },
   });
   return { ok: true, hp: pl.hp, maxHp: pl.maxHp, innName: inn.name };
 }));
@@ -364,13 +433,299 @@ app.get("/api/inns", async () => {
   return inns.map((n) => ({ innId: n.innId, name: n.name, lat: n.lat, lng: n.lng, radiusM: n.radiusM }));
 });
 
+// 道具屋マスタ一覧
+app.get("/api/shops", async () => {
+  const shops = await prisma.shopMaster.findMany();
+  return shops.map((sh) => ({ shopId: sh.shopId, name: sh.name, lat: sh.lat, lng: sh.lng, radiusM: sh.radiusM }));
+});
+
+// 道具屋で買える商品(回復系のみ・在庫無限)
+app.get("/api/shop/items", async () => {
+  const items = await prisma.itemMaster.findMany({ where: { OR: [{ category: "heal" }, { category: "antidote" }] } });
+  return items.map((it) => ({ itemId: it.itemId, name: it.name, price: it.basePrice, healAmount: it.healAmount, curePoison: it.curePoison }));
+});
+
+// 購入(ゴールド消費)
+app.post("/api/shop/buy", requireAuth(async (req, reply) => {
+  const schema = z.object({ shopId: z.string(), itemId: z.string(), qty: z.number().int().positive().max(99) });
+  const p = schema.safeParse(req.body);
+  if (!p.success) return reply.code(400).send({ error: "入力が不正です" });
+  const { shopId, itemId, qty } = p.data;
+  try {
+    const out = await prisma.$transaction(async (tx) => {
+      const shop = await tx.shopMaster.findUnique({ where: { shopId } });
+      if (!shop) throw new Error("SHOP_NOT_FOUND");
+      const item = await tx.itemMaster.findUnique({ where: { itemId } });
+      if (!item || (item.category !== "heal" && item.category !== "antidote")) throw new Error("NOT_BUYABLE");
+      const cost = item.basePrice * qty;
+      const player = await tx.player.findUnique({ where: { id: req.player.id } });
+      if (player.gold < cost) throw new Error("INSUFFICIENT_GOLD");
+      await tx.player.update({ where: { id: player.id }, data: { gold: player.gold - cost } });
+      const inv = await tx.playerItem.findUnique({ where: { playerId_itemId: { playerId: player.id, itemId } } });
+      if (inv) await tx.playerItem.update({ where: { id: inv.id }, data: { qty: inv.qty + qty } });
+      else await tx.playerItem.create({ data: { playerId: player.id, itemId, qty } });
+      return { gold: player.gold - cost, itemName: item.name, qty };
+    });
+    return { ok: true, ...out };
+  } catch (e) {
+    const map = { SHOP_NOT_FOUND: [404, "道具屋が見つかりません"], NOT_BUYABLE: [400, "買えない商品です"], INSUFFICIENT_GOLD: [400, "所持金が足りません"] };
+    const m = map[e.message];
+    if (m) return reply.code(m[0]).send({ error: m[1] });
+    throw e;
+  }
+}));
+
+// 売却(ゴールド入手)
+app.post("/api/shop/sell", requireAuth(async (req, reply) => {
+  const schema = z.object({ itemId: z.string(), qty: z.number().int().positive().max(99) });
+  const p = schema.safeParse(req.body);
+  if (!p.success) return reply.code(400).send({ error: "入力が不正です" });
+  const { itemId, qty } = p.data;
+  try {
+    const out = await prisma.$transaction(async (tx) => {
+      const item = await tx.itemMaster.findUnique({ where: { itemId } });
+      if (!item || !item.sellable) throw new Error("NOT_SELLABLE");
+      const inv = await tx.playerItem.findUnique({ where: { playerId_itemId: { playerId: req.player.id, itemId } } });
+      if (!inv || inv.qty < qty) throw new Error("NOT_ENOUGH");
+      const gain = Math.floor(item.basePrice * SELL_RATE) * qty;
+      if (inv.qty === qty) await tx.playerItem.delete({ where: { id: inv.id } });
+      else await tx.playerItem.update({ where: { id: inv.id }, data: { qty: inv.qty - qty } });
+      const player = await tx.player.update({ where: { id: req.player.id }, data: { gold: { increment: gain } } });
+      return { gold: player.gold, gain, itemName: item.name, qty };
+    });
+    return { ok: true, ...out };
+  } catch (e) {
+    const map = { NOT_SELLABLE: [400, "売れないアイテムです"], NOT_ENOUGH: [400, "所持数が足りません"] };
+    const m = map[e.message];
+    if (m) return reply.code(m[0]).send({ error: m[1] });
+    throw e;
+  }
+}));
+
+// =====================================================
+// ターン制戦闘(サーバー権威 / Phase B)
+// =====================================================
+function randBonus(base) {
+  const r = 1 + (Math.random() * 2 - 1) * BONUS_RANGE;
+  return Math.max(0, Math.round(base * r));
+}
+
+// 経験値を加算してレベルアップを反映(必要EXPを消費)。返り値に新ステータス。
+function applyLevelUps(exp, level, maxHp, attack, defense) {
+  let leveledUp = false;
+  while (exp >= level * LEVEL_EXP_FACTOR) {
+    exp -= level * LEVEL_EXP_FACTOR;
+    level += 1; maxHp += LV_HP; attack += LV_ATK; defense += LV_DEF;
+    leveledUp = true;
+  }
+  return { exp, level, maxHp, attack, defense, leveledUp };
+}
+
+// 勝利確定: EXP/ゴールド/レベル/報酬/クールダウンを原子的に反映。currentHp=戦闘終了時のHP。
+async function finalizeWin(tx, player, currentHp, spot, enemy) {
+  const expGain = randBonus(enemy.expBase);
+  const goldGain = randBonus(enemy.goldBase);
+  const lv = applyLevelUps(player.exp + expGain, player.level, player.maxHp, player.attack, player.defense);
+  // 報酬: スポット固定 + 敵確率ドロップ(常に同じ確率。クールダウン非適用)
+  const rewardIds = [];
+  if (spot.rewardItemId) rewardIds.push(spot.rewardItemId);
+  if (enemy.dropItemId && Math.random() < enemy.dropRate) rewardIds.push(enemy.dropItemId);
+  const rewards = [];
+  for (const itemId of rewardIds) {
+    const item = await tx.itemMaster.findUnique({ where: { itemId } });
+    if (!item) continue;
+    const inv = await tx.playerItem.findUnique({ where: { playerId_itemId: { playerId: player.id, itemId } } });
+    if (inv) await tx.playerItem.update({ where: { id: inv.id }, data: { qty: inv.qty + 1 } });
+    else await tx.playerItem.create({ data: { playerId: player.id, itemId, qty: 1 } });
+    rewards.push({ itemId, name: item.name, rarity: item.rarity });
+  }
+  const victoryUntil = new Date(Date.now() + VICTORY_COOLDOWN_MIN * 60000);
+  await tx.playerSpotState.upsert({
+    where: { playerId_spotId: { playerId: player.id, spotId: spot.spotId } },
+    update: { victoryUntil, penaltyUntil: null },
+    create: { playerId: player.id, spotId: spot.spotId, victoryUntil },
+  });
+  const hp = lv.leveledUp ? lv.maxHp : currentHp; // レベルアップ時のみ全回復
+  await tx.player.update({
+    where: { id: player.id },
+    data: { exp: lv.exp, level: lv.level, maxHp: lv.maxHp, attack: lv.attack, defense: lv.defense, hp, gold: player.gold + goldGain },
+  });
+  await tx.battleLog.create({ data: { playerId: player.id, enemyId: enemy.enemyId, spotId: spot.spotId, result: "win" } });
+  return {
+    expGain, goldGain, leveledUp: lv.leveledUp, level: lv.level, nextExp: lv.level * LEVEL_EXP_FACTOR,
+    gold: player.gold + goldGain, hp, maxHp: lv.maxHp, attack: lv.attack, defense: lv.defense, rewards, victoryUntil,
+  };
+}
+
+// 戦闘開始
+app.post("/api/battle/start", requireAuth(async (req, reply) => {
+  const schema = z.object({ spotId: z.string() });
+  const p = schema.safeParse(req.body);
+  if (!p.success) return reply.code(400).send({ error: "入力が不正です" });
+  const playerId = req.player.id;
+
+  // 入室時に回復(敗北明け)/毒を反映
+  const stIn = refreshPlayerState(req.player);
+  if (stateChanged(req.player, stIn)) {
+    req.player = await prisma.player.update({ where: { id: playerId }, data: { hp: stIn.hp, healAt: stIn.healAt, downedUntil: stIn.downedUntil, poisoned: stIn.poisoned, poisonTickAt: stIn.poisonTickAt } });
+  }
+
+  if (req.player.downedUntil && new Date(req.player.downedUntil) > new Date()) {
+    return reply.code(409).send({ error: "戦闘不能中です", downedUntil: req.player.downedUntil });
+  }
+
+  const existing = await prisma.battleSession.findUnique({ where: { playerId } });
+  if (existing && existing.status === "active") {
+    const en = await prisma.enemyMaster.findUnique({ where: { enemyId: existing.enemyId } });
+    return {
+      ok: true, resumed: true, sessionId: existing.id, spotId: existing.spotId,
+      enemy: { id: en.enemyId, name: en.name, maxHp: en.hp, image: en.image },
+      enemyHp: existing.enemyHp, playerHp: req.player.hp, playerMaxHp: req.player.maxHp, poisoned: req.player.poisoned,
+    };
+  }
+
+  try {
+    const out = await prisma.$transaction(async (tx) => {
+      const spot = await tx.spotMaster.findUnique({ where: { spotId: p.data.spotId }, include: { enemy: true } });
+      if (!spot) throw new Error("SPOT_NOT_FOUND");
+      if (!spot.active) throw new Error("SPOT_INACTIVE");
+      const state = await tx.playerSpotState.findUnique({ where: { playerId_spotId: { playerId, spotId: spot.spotId } } });
+      const now = new Date();
+      if (state && state.penaltyUntil && state.penaltyUntil > now) throw new Error("PENALTY_ACTIVE");
+      if (state && state.victoryUntil && state.victoryUntil > now) throw new Error("VICTORY_COOLDOWN");
+      if (existing) await tx.battleSession.delete({ where: { playerId } }); // 古い非activeを掃除
+      const session = await tx.battleSession.create({
+        data: { playerId, spotId: spot.spotId, enemyId: spot.enemyId, enemyHp: spot.enemy.hp },
+      });
+      return { session, enemy: spot.enemy };
+    });
+    return {
+      ok: true, sessionId: out.session.id, spotId: out.session.spotId,
+      enemy: { id: out.enemy.enemyId, name: out.enemy.name, maxHp: out.enemy.hp, image: out.enemy.image },
+      enemyHp: out.enemy.hp, playerHp: req.player.hp, playerMaxHp: req.player.maxHp, poisoned: req.player.poisoned,
+    };
+  } catch (e) {
+    const map = {
+      SPOT_NOT_FOUND: [404, "スポットが見つかりません"],
+      SPOT_INACTIVE: [400, "このスポットは現在利用できません"],
+      PENALTY_ACTIVE: [409, "敗北ペナルティ中です"],
+      VICTORY_COOLDOWN: [409, "この敵は再出現待ちです"],
+    };
+    const m = map[e.message];
+    if (m) return reply.code(m[0]).send({ error: m[1] });
+    throw e;
+  }
+}));
+
+// 戦闘の1アクション(attack / useItem)。1アクション=1ターン。
+app.post("/api/battle/action", requireAuth(async (req, reply) => {
+  const schema = z.object({ action: z.enum(["attack", "useItem"]), itemId: z.string().optional() });
+  const p = schema.safeParse(req.body);
+  if (!p.success) return reply.code(400).send({ error: "入力が不正です" });
+  const playerId = req.player.id;
+
+  try {
+    const out = await prisma.$transaction(async (tx) => {
+      const session = await tx.battleSession.findUnique({ where: { playerId } });
+      if (!session || session.status !== "active") throw new Error("NO_BATTLE");
+      const spot = await tx.spotMaster.findUnique({ where: { spotId: session.spotId }, include: { enemy: true } });
+      const enemy = spot.enemy;
+      const player = await tx.player.findUnique({ where: { id: playerId } });
+      const st0 = refreshPlayerState(player);
+      let php = st0.hp;
+      let poisoned = st0.poisoned;
+      let poisonTickAt = st0.poisonTickAt;
+      const healAt0 = st0.healAt;
+      let ehp = session.enemyHp;
+      const logs = [];
+
+      if (p.data.action === "useItem") {
+        if (!p.data.itemId) throw new Error("NO_ITEM");
+        const item = await tx.itemMaster.findUnique({ where: { itemId: p.data.itemId } });
+        if (!item || (item.healAmount <= 0 && !item.curePoison)) throw new Error("NOT_USABLE");
+        const inv = await tx.playerItem.findUnique({ where: { playerId_itemId: { playerId, itemId: item.itemId } } });
+        if (!inv || inv.qty < 1) throw new Error("NOT_OWNED");
+        const msgs = [];
+        let used = false;
+        if (item.curePoison && poisoned) { poisoned = false; poisonTickAt = null; msgs.push("毒が消えた"); used = true; }
+        if (item.healAmount > 0 && php < player.maxHp) { const before = php; php = Math.min(player.maxHp, php + item.healAmount); msgs.push("HP+" + (php - before)); used = true; }
+        if (!used) throw new Error("NOTHING_TO_DO");
+        if (inv.qty === 1) await tx.playerItem.delete({ where: { id: inv.id } });
+        else await tx.playerItem.update({ where: { id: inv.id }, data: { qty: inv.qty - 1 } });
+        logs.push(item.name + "を使った(" + msgs.join("、") + ")");
+      } else {
+        const d1 = computeDamage(player.attack, enemy.defense);
+        ehp = Math.max(0, ehp - d1);
+        logs.push("プレイヤーの攻撃! " + enemy.name + "に" + d1 + "ダメージ");
+      }
+
+      // 敵撃破=勝利
+      if (ehp <= 0) {
+        logs.push("勝利!");
+        const win = await finalizeWin(tx, player, php, spot, enemy);
+        await tx.player.update({ where: { id: playerId }, data: { poisoned, poisonTickAt, healAt: healAt0 } });
+        await tx.battleSession.delete({ where: { playerId } });
+        return { finished: true, result: "win", logs, playerHp: win.hp, enemyHp: 0, poisoned, win };
+      }
+
+      // 敵の反撃
+      const d2 = computeDamage(enemy.attack, player.defense);
+      php = Math.max(0, php - d2);
+      logs.push(enemy.name + "の攻撃! プレイヤーに" + d2 + "ダメージ");
+      if (!poisoned && enemy.poisonChance > 0 && Math.random() < enemy.poisonChance) {
+        poisoned = true; poisonTickAt = new Date();
+        logs.push("毒におかされた!");
+      }
+
+      if (php <= 0) {
+        // 敗北 → 戦闘不能(グローバル)
+        const downedUntil = new Date(Date.now() + DOWNED_MIN * 60000);
+        await tx.player.update({ where: { id: playerId }, data: { hp: 0, downedUntil, poisoned, poisonTickAt } });
+        await tx.battleLog.create({ data: { playerId, enemyId: enemy.enemyId, spotId: spot.spotId, result: "lose" } });
+        await tx.battleSession.delete({ where: { playerId } });
+        logs.push("敗北... 戦闘不能になった");
+        return { finished: true, result: "lose", logs, playerHp: 0, enemyHp: ehp, poisoned, downedUntil };
+      }
+
+      // 継続
+      await tx.player.update({ where: { id: playerId }, data: { hp: php, healAt: healAt0, poisoned, poisonTickAt } });
+      await tx.battleSession.update({ where: { playerId }, data: { enemyHp: ehp, turn: session.turn + 1 } });
+      return { finished: false, result: null, logs, playerHp: php, enemyHp: ehp, poisoned };
+    });
+    return { ok: true, ...out };
+  } catch (e) {
+    const map = {
+      NO_BATTLE: [409, "進行中の戦闘がありません"],
+      NO_ITEM: [400, "アイテムが指定されていません"],
+      NOT_USABLE: [400, "戦闘で使えるのは回復/毒消しアイテムだけです"],
+      NOT_OWNED: [400, "そのアイテムを持っていません"],
+      NOTHING_TO_DO: [400, "今は使う必要がありません"],
+    };
+    const m = map[e.message];
+    if (m) return reply.code(m[0]).send({ error: m[1] });
+    throw e;
+  }
+}));
+
+// 進行中の戦闘を取得(リロード復帰用)
+app.get("/api/battle/current", requireAuth(async (req) => {
+  const session = await prisma.battleSession.findUnique({ where: { playerId: req.player.id } });
+  if (!session || session.status !== "active") return { active: false };
+  const enemy = await prisma.enemyMaster.findUnique({ where: { enemyId: session.enemyId } });
+  return {
+    active: true, sessionId: session.id, spotId: session.spotId,
+    enemy: { id: enemy.enemyId, name: enemy.name, maxHp: enemy.hp, image: enemy.image },
+    enemyHp: session.enemyHp, playerHp: req.player.hp, playerMaxHp: req.player.maxHp, poisoned: req.player.poisoned, downedUntil: req.player.downedUntil,
+  };
+}));
+
 // ---- 在庫 ----
 app.get("/api/inventory", requireAuth(async (req) => {
   const items = await prisma.playerItem.findMany({
     where: { playerId: req.player.id },
     include: { item: true },
   });
-  return items.map((r) => ({ itemId: r.itemId, name: r.item.name, qty: r.qty, rarity: r.item.rarity, healAmount: r.item.healAmount }));
+  return items.map((r) => ({ itemId: r.itemId, name: r.item.name, qty: r.qty, rarity: r.item.rarity, healAmount: r.item.healAmount, curePoison: r.item.curePoison, category: r.item.category, sellable: r.item.sellable, sellPrice: Math.floor(r.item.basePrice * SELL_RATE) }));
 }));
 
 // ---- マーケット ----

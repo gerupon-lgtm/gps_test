@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <title>GPS連動ブラウザゲーム 検証版</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
-  <link rel="stylesheet" href="./css/style.css?v=5" />
+  <link rel="stylesheet" href="./css/style.css?v=7" />
 </head>
 <body>
   <header class="app-header">
@@ -40,6 +40,18 @@
       <p id="auth-msg" class="auth-msg"></p>
     </div>
   </div>
+
+  <!-- ===== 戦闘不能オーバーレイ ===== -->
+  <div id="downed-overlay" class="downed-overlay hidden">
+    <div class="downed-card">
+      <h2>戦闘不能</h2>
+      <p>しばらく戦闘できません。</p>
+      <p class="downed-count">復帰まで <span id="downed-sec">--</span> 秒</p>
+    </div>
+  </div>
+
+  <!-- ===== トースト ===== -->
+  <div id="toast" class="toast hidden"></div>
 
   <!-- ===== デバッグ/テストパネル ===== -->
   <section id="debug-panel" class="debug-panel hidden">
@@ -116,6 +128,15 @@
       <p id="inn-msg" class="muted small"></p>
     </section>
 
+    <section id="shop-area" class="shop-area hidden">
+      <h3>🛒 道具屋 <span id="shop-area-name" class="muted small">-</span></h3>
+      <div class="shop-cols">
+        <div class="shop-col"><h4>買う</h4><ul id="shop-buy-list" class="shop-list"></ul></div>
+        <div class="shop-col"><h4>売る</h4><ul id="shop-sell-list" class="shop-list"></ul></div>
+      </div>
+      <p id="shop-msg" class="muted small"></p>
+    </section>
+
     <p id="geo-error" class="error-text"></p>
 
     <!-- 3. 地図(大きく) + 現在地に戻るボタン -->
@@ -175,6 +196,8 @@
     </div>
 
     <button id="btn-attack" class="btn btn-primary btn-big">攻撃</button>
+    <button id="btn-use-item" class="btn btn-sub btn-big">アイテム</button>
+    <div id="battle-item-list" class="battle-item-list hidden"></div>
 
     <div id="battle-result" class="battle-result hidden"></div>
     <p id="battle-reward" class="battle-reward hidden"></p>
@@ -192,16 +215,16 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 
   <!-- スクリプト(読み込み順に注意: config → 各モジュール → app) -->
-  <script src="./js/config.js?v=7"></script>
-  <script src="./js/api.js?v=2"></script>
+  <script src="./js/config.js?v=8"></script>
+  <script src="./js/api.js?v=4"></script>
   <script src="./js/authGate.js?v=1"></script>
   <script src="./js/distance.js?v=3"></script>
-  <script src="./js/csvLoader.js?v=4"></script>
+  <script src="./js/csvLoader.js?v=5"></script>
   <script src="./js/geo.js?v=3"></script>
   <script src="./js/battle.js?v=3"></script>
   <script src="./js/storage.js?v=4"></script>
   <script src="./js/map-key.js?v=3"></script>
-  <script src="./js/map.js?v=3"></script>
-  <script src="./js/app.js?v=7"></script>
+  <script src="./js/map.js?v=4"></script>
+  <script src="./js/app.js?v=10"></script>
 </body>
 </html>

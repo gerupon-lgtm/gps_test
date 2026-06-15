@@ -31,6 +31,13 @@ const API = {
   postLocation: (lat, lng) => _api("/api/location", "POST", { lat, lng }),
   setShare: (share) => _api("/api/location/share", "POST", { share }),
   battle: (spotId) => _api("/api/battle", "POST", { spotId }),
+  battleStart: (spotId) => _api("/api/battle/start", "POST", { spotId }),
+  battleAction: (action, itemId) => _api("/api/battle/action", "POST", itemId ? { action, itemId } : { action }),
+  battleCurrent: () => _api("/api/battle/current", "GET"),
+  shops: () => _api("/api/shops", "GET"),
+  shopItems: () => _api("/api/shop/items", "GET"),
+  buyItem: (shopId, itemId, qty) => _api("/api/shop/buy", "POST", { shopId, itemId, qty }),
+  sellItem: (itemId, qty) => _api("/api/shop/sell", "POST", { itemId, qty }),
   useItem: (itemId) => _api("/api/item/use", "POST", { itemId }),
   innRest: (innId) => _api("/api/inn/rest", "POST", { innId }),
   spotStates: () => _api("/api/spot-states", "GET"),
@@ -46,5 +53,7 @@ function reportLocationThrottled(pos) {
   const interval = (typeof CONFIG !== "undefined" && CONFIG.LOCATION_REPORT_INTERVAL_MS) || 30000;
   if (now - _lastLocReport < interval) return;
   _lastLocReport = now;
-  API.postLocation(pos.latitude, pos.longitude).catch(() => {});
+  API.postLocation(pos.latitude, pos.longitude)
+    .then((r) => { if (r && r.pickup && typeof onPickup === "function") onPickup(r.pickup); })
+    .catch(() => {});
 }

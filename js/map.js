@@ -128,3 +128,24 @@ function recenterMap() {
   _map.setView(_lastLL, CONFIG.MAP_DEFAULT_ZOOM);
   return true;
 }
+
+// 宿屋(緑)・道具屋(青)のマーカーを表示(敵スポットは出さない方針)
+let _poiLayer = null;
+function setPois(inns, shops) {
+  if (!isLeafletReady()) return;
+  if (!_mapInited) initMap();
+  if (!_map) return;
+  if (_poiLayer) { try { _map.removeLayer(_poiLayer); } catch (e) {} }
+  _poiLayer = L.layerGroup();
+  (inns || []).forEach((n) => {
+    if (n.latitude == null || n.longitude == null) return;
+    L.circleMarker([n.latitude, n.longitude], { radius: 6, color: "#fff", weight: 1, fillColor: "#16a34a", fillOpacity: 1 })
+      .bindPopup("🛏 " + n.inn_name).addTo(_poiLayer);
+  });
+  (shops || []).forEach((sh) => {
+    if (sh.latitude == null || sh.longitude == null) return;
+    L.circleMarker([sh.latitude, sh.longitude], { radius: 6, color: "#fff", weight: 1, fillColor: "#2563eb", fillOpacity: 1 })
+      .bindPopup("🛒 " + sh.shop_name).addTo(_poiLayer);
+  });
+  _poiLayer.addTo(_map);
+}

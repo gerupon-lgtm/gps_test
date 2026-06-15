@@ -10,8 +10,10 @@ const App = {
   currentBattle: null,
   currentSpot: null,
   currentInn: null,
+  currentShop: null,
   player: null,    // /api/me のプレイヤー状態(HP/gold等)
   waitTimer: null, // 待機(敗北/勝利)カウントダウン用
+  downedTimer: null,
 };
 
 // ---- ユーティリティ ----
@@ -58,6 +60,9 @@ async function init() {
   renderItems();
   bindEvents();
   buildSpotJumpList();
+  if (App.data) setPois(App.data.inns, App.data.shops);
+  updateDownedOverlay();
+  resumeBattleIfAny();
 }
 
 // =====================================================
@@ -67,6 +72,8 @@ function bindEvents() {
   $("btn-start").addEventListener("click", onStart);
   $("btn-stop").addEventListener("click", onStop);
   $("btn-attack").addEventListener("click", onAttack);
+  $("btn-use-item").addEventListener("click", onUseItemInBattle);
+  $("battle-item-list").addEventListener("click", onBattleItemClick);
   $("btn-battle-back").addEventListener("click", () => {
     App.currentBattle = null;
     App.currentSpot = null;
@@ -77,6 +84,8 @@ function bindEvents() {
   $("btn-start-battle").addEventListener("click", onStartBattle);
   $("btn-rest").addEventListener("click", onRest);
   $("items-list").addEventListener("click", onItemListClick);
+  $("shop-buy-list").addEventListener("click", onShopBuyClick);
+  $("shop-sell-list").addEventListener("click", onShopSellClick);
   $("btn-recenter").addEventListener("click", () => {
     if (!recenterMap()) {
       $("geo-error").textContent = "現在地がまだ取得できていません";
@@ -156,8 +165,9 @@ function updateExplore(pos) {
   // 地図に現在地を反映(スポットは地図に出さない)
   updateMapPosition(pos.latitude, pos.longitude, pos.accuracy);
 
-  // 宿屋の近接判定(スポットとは独立に常に評価)
+  // 宿屋・道具屋の近接判定(スポットとは独立に常に評価)
   updateInnArea(pos);
+  updateShopArea(pos);
 
   if (!App.data || App.data.spots.length === 0) {
     setNearestName("-");
@@ -407,7 +417,7 @@ function formatTime(sec) {
 // =====================================================
 // 戦闘
 // =====================================================
-// 戦闘開始: サーバーが結果を確定(全ターン)し、クライアントはそれを再生する。
+// 戦闘開始: ターン制(サーバー権威)。/api/battle/start でセッション開始。
 async function onStartBattle() {
   const spot = App.currentSpot;
   if (!spot) return;
@@ -418,7 +428,7 @@ async function onStartBattle() {
   $("btn-start-battle").disabled = true;
   let res;
   try {
-    res = await API.battle(spot.spot_id);
+    res = await API.battleStart(spot.spot_id);
   } catch (e) {
     $("btn-start-battle").disabled = false;
     await refreshSpotStates();
@@ -426,47 +436,101 @@ async function onStartBattle() {
     updateExplore(App.lastPosition);
     return;
   }
-  const enemy = App._pendingEnemy || {};
+  startBattleUI(res, spot.spot_id);
+}
+
+// サーバー応答からバトルUIを構築(新規開始/リロード復帰 共通)
+function startBattleUI(res, spotId) {
+  if (!App.currentSpot || App.currentSpot.spot_id !== spotId) {
+    App.currentSpot = { spot_id: spotId };
+  }
   App.currentBattle = {
-    res: res,
-    enemyName: res.enemyName,
-    enemyMaxHp: res.enemyMaxHp,
+    enemyName: res.enemy.name,
+    enemyMaxHp: res.enemy.maxHp,
     playerMaxHp: res.playerMaxHp,
-    enemyImage: enemy.image || "",
-    turnIndex: 0,
-    curEnemyHp: res.enemyMaxHp,
-    curPlayerHp: res.startPlayerHp,
-    logLines: ["戦闘開始! " + res.enemyName + " が現れた"],
+    enemyImage: res.enemy.image || (App._pendingEnemy && App._pendingEnemy.image) || "",
+    curEnemyHp: res.enemyHp,
+    curPlayerHp: res.playerHp,
+    logLines: [res.resumed ? "戦闘中… (復帰しました)" : ("戦闘開始! " + res.enemy.name + " が現れた")],
     finished: false,
     result: null,
+    busy: false,
   };
+  if (App.player && typeof res.poisoned !== "undefined") App.player.poisoned = res.poisoned;
+  updateHpDisplay();
+  hideBattleItemList();
   renderBattle();
   showScreen("battle");
 }
 
-// 攻撃ボタン: サーバーが返したターンを1つずつ再生する。
-function onAttack() {
+// 1アクションをサーバーへ送信(attack / useItem)。1アクション=1ターン。
+async function doBattleAction(action, itemId) {
   const b = App.currentBattle;
-  if (!b || b.finished) return;
-  const turn = b.res.turns[b.turnIndex];
-  if (!turn) { finishBattle(); return; }
-  turn.logs.forEach((l) => b.logLines.push(l));
-  b.curPlayerHp = turn.playerHp;
-  b.curEnemyHp = turn.enemyHp;
-  b.turnIndex++;
-  renderBattle();
-  if (b.turnIndex >= b.res.turns.length) finishBattle();
+  if (!b || b.finished || b.busy) return;
+  b.busy = true;
+  $("btn-attack").disabled = true;
+  $("btn-use-item").disabled = true;
+  hideBattleItemList();
+  let r;
+  try {
+    r = await API.battleAction(action, itemId);
+  } catch (e) {
+    b.busy = false;
+    renderBattle();
+    $("battle-reward").textContent = e.message || "行動できませんでした";
+    show("battle-reward");
+    return;
+  }
+  b.busy = false;
+  (r.logs || []).forEach((l) => b.logLines.push(l));
+  b.curPlayerHp = r.playerHp;
+  b.curEnemyHp = r.enemyHp;
+  if (App.player && typeof r.poisoned !== "undefined") App.player.poisoned = r.poisoned;
+  if (r.finished) {
+    b.finished = true;
+    b.result = r.result;
+    if (App.player) App.player.hp = r.playerHp;
+    if (r.result === "win") handleWin(r.win);
+    else handleLose(r);
+    renderBattle();
+    updateHpDisplay();
+  } else {
+    if (App.player) App.player.hp = r.playerHp;
+    renderBattle();
+    updateHpDisplay();
+  }
 }
 
-function finishBattle() {
-  const b = App.currentBattle;
-  b.finished = true;
-  b.result = b.res.result;
-  if (App.player) App.player.hp = b.res.finalPlayerHp;
-  if (b.result === "win") handleWin(b.res);
-  else handleLose(b.res);
-  renderBattle();
-  updateHpDisplay();
+function onAttack() { doBattleAction("attack"); }
+
+// 戦闘中の回復アイテム選択リストを開閉
+async function onUseItemInBattle() {
+  const el = $("battle-item-list");
+  if (!el) return;
+  if (!el.classList.contains("hidden")) { el.classList.add("hidden"); return; }
+  let items = [];
+  try { items = await API.inventory(); } catch (e) { items = []; }
+  const usable = (items || []).filter((i) => (i.healAmount > 0 || i.curePoison) && i.qty > 0);
+  if (usable.length === 0) {
+    el.innerHTML = "<div class=\"muted small\">使えるアイテムがありません</div>";
+  } else {
+    el.innerHTML = usable.map((i) => {
+      const eff = i.healAmount > 0 ? ("+" + i.healAmount) : "毒消し";
+      return "<button class=\"battle-item-btn\" data-item=\"" + i.itemId + "\">" + i.name + "(" + eff + ") x" + i.qty + "</button>";
+    }).join("");
+  }
+  el.classList.remove("hidden");
+}
+
+function hideBattleItemList() {
+  const el = $("battle-item-list");
+  if (el) el.classList.add("hidden");
+}
+
+function onBattleItemClick(e) {
+  const btn = e.target.closest(".battle-item-btn");
+  if (!btn) return;
+  doBattleAction("useItem", btn.dataset.item);
 }
 
 function renderBattle() {
@@ -496,44 +560,169 @@ function renderBattle() {
 
   if (b.finished) {
     $("btn-attack").disabled = true;
+    $("btn-use-item").disabled = true;
+    hide("btn-use-item");
+    hideBattleItemList();
     $("battle-result").textContent = b.result === "win" ? "勝利!" : "敗北...";
     $("battle-result").className = "battle-result " + (b.result === "win" ? "win" : "lose");
     show("battle-result");
     show("btn-battle-back");
   } else {
-    $("btn-attack").disabled = false;
+    $("btn-attack").disabled = b.busy;
+    $("btn-use-item").disabled = b.busy;
+    show("btn-use-item");
     hide("battle-result");
     hide("btn-battle-back");
   }
 }
 
-function handleWin(res) {
+function handleWin(win) {
   const spot = App.currentSpot;
-  if (res.victoryUntil) saveVictoryCooldown(spot.spot_id, res.victoryUntil);
-  let txt;
-  if (res.reward) {
-    txt = "「" + res.reward.name + "」を手に入れた!(この敵は約" + res.cooldownMin + "分後に再出現)";
-  } else {
-    txt = "勝利した!(この敵は約" + res.cooldownMin + "分後に再出現)";
+  if (win && win.victoryUntil && spot) saveVictoryCooldown(spot.spot_id, win.victoryUntil);
+  if (App.player && win) {
+    App.player.hp = win.hp; App.player.maxHp = win.maxHp;
+    App.player.gold = win.gold; App.player.level = win.level;
+    App.player.attack = win.attack; App.player.defense = win.defense;
   }
-  $("battle-reward").textContent = txt;
+  const parts = ["勝利! EXP+" + (win ? win.expGain : 0) + " / " + (win ? win.goldGain : 0) + "G"];
+  if (win && win.leveledUp) parts.push("レベルアップ! Lv" + win.level + "(HP全回復)");
+  if (win && win.rewards && win.rewards.length) parts.push("入手: " + win.rewards.map((r) => r.name).join("、"));
+  $("battle-reward").textContent = parts.join(" / ");
   show("battle-reward");
+  renderItems();
+  updateHpDisplay();
+}
+
+function handleLose(r) {
+  if (App.player && r.downedUntil) App.player.downedUntil = r.downedUntil;
+  $("battle-reward").textContent = "敗北... 戦闘不能になった";
+  show("battle-reward");
+  updateDownedOverlay();
+}
+
+// ---- 戦闘不能オーバーレイ ----
+function updateDownedOverlay() {
+  const ov = $("downed-overlay");
+  if (!ov) return;
+  const until = App.player && App.player.downedUntil ? new Date(App.player.downedUntil).getTime() : 0;
+  const remain = until - Date.now();
+  if (remain > 0) {
+    ov.classList.remove("hidden");
+    $("downed-sec").textContent = Math.ceil(remain / 1000);
+    if (!App.downedTimer) App.downedTimer = setInterval(onDownedTick, 1000);
+  } else {
+    ov.classList.add("hidden");
+    if (App.downedTimer) { clearInterval(App.downedTimer); App.downedTimer = null; }
+  }
+}
+
+async function onDownedTick() {
+  const until = App.player && App.player.downedUntil ? new Date(App.player.downedUntil).getTime() : 0;
+  const remain = until - Date.now();
+  if (remain > 0) {
+    $("downed-sec").textContent = Math.ceil(remain / 1000);
+    return;
+  }
+  if (App.downedTimer) { clearInterval(App.downedTimer); App.downedTimer = null; }
+  try { App.player = await API.me(); } catch (e) {}
+  $("downed-overlay").classList.add("hidden");
+  updateHpDisplay();
+  if (App.lastPosition) updateExplore(App.lastPosition);
+}
+
+// ---- 散策拾いトースト ----
+let _toastTimer = null;
+function showToast(msg) {
+  const el = $("toast");
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove("hidden");
+  if (_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.add("hidden"), 3500);
+}
+function onPickup(pickup) {
+  showToast("✨ " + pickup.name + " を拾った!");
   renderItems();
 }
 
-function handleLose(res) {
-  const spot = App.currentSpot;
-  if (res.penaltyUntil) savePenalty(spot.spot_id, res.penaltyUntil);
-  $("battle-reward").textContent =
-    res.cooldownMin + "分間このスポットでは再戦できません(時間経過後に少しHPが回復します)";
-  show("battle-reward");
+// ---- 道具屋(近接UI) ----
+function updateShopArea(pos) {
+  const area = $("shop-area");
+  if (!area) return;
+  const shops = (App.data && App.data.shops) || [];
+  let near = null;
+  for (const sh of shops) {
+    if (sh.latitude == null || sh.longitude == null) continue;
+    const d = calculateDistanceMeters(pos.latitude, pos.longitude, sh.latitude, sh.longitude);
+    if (d <= (sh.radius_meters || 50) && (near === null || d < near.distance)) near = { shop: sh, distance: d };
+  }
+  if (near) {
+    const same = App.currentShop && App.currentShop.shop_id === near.shop.shop_id;
+    App.currentShop = near.shop;
+    $("shop-area-name").textContent = near.shop.shop_name;
+    show("shop-area");
+    if (!same) buildShopLists();
+  } else {
+    hide("shop-area");
+    App.currentShop = null;
+  }
+}
+
+async function buildShopLists() {
+  let buy = [];
+  try { buy = await API.shopItems(); } catch (e) { buy = []; }
+  $("shop-buy-list").innerHTML = (buy && buy.length)
+    ? buy.map((it) => "<li><span>" + it.name + " <span class=\"muted\">" + it.price + "G</span></span><button class=\"shop-buy-btn\" data-item=\"" + it.itemId + "\">買う</button></li>").join("")
+    : "<li class=\"muted\">商品なし</li>";
+  let inv = [];
+  try { inv = await API.inventory(); } catch (e) { inv = []; }
+  const sellable = (inv || []).filter((i) => i.sellable && i.qty > 0);
+  $("shop-sell-list").innerHTML = sellable.length
+    ? sellable.map((i) => "<li><span>" + i.name + " <span class=\"muted\">x" + i.qty + "</span></span><button class=\"shop-sell-btn\" data-item=\"" + i.itemId + "\">売(" + i.sellPrice + ")</button></li>").join("")
+    : "<li class=\"muted\">売れる物なし</li>";
+}
+
+async function onShopBuyClick(e) {
+  const btn = e.target.closest(".shop-buy-btn");
+  if (!btn || !App.currentShop) return;
+  btn.disabled = true;
+  try {
+    const r = await API.buyItem(App.currentShop.shop_id, btn.dataset.item, 1);
+    if (App.player) App.player.gold = r.gold;
+    updateHpDisplay();
+    $("shop-msg").textContent = r.itemName + " を買った(残り " + r.gold + "G)";
+  } catch (err) { $("shop-msg").textContent = err.message; }
+  buildShopLists();
+}
+
+async function onShopSellClick(e) {
+  const btn = e.target.closest(".shop-sell-btn");
+  if (!btn) return;
+  btn.disabled = true;
+  try {
+    const r = await API.sellItem(btn.dataset.item, 1);
+    if (App.player) App.player.gold = r.gold;
+    updateHpDisplay();
+    $("shop-msg").textContent = r.itemName + " を売った(+" + r.gain + "G / 残り " + r.gold + "G)";
+  } catch (err) { $("shop-msg").textContent = err.message; }
+  buildShopLists();
+}
+
+// リロード時に進行中の戦闘があれば復帰
+async function resumeBattleIfAny() {
+  let cur;
+  try { cur = await API.battleCurrent(); } catch (e) { return; }
+  if (!cur || !cur.active) return;
+  startBattleUI(cur, cur.spotId);
 }
 
 // ---- 宿屋・回復・状態 ----
 function updateHpDisplay() {
   const el = document.getElementById("auth-status");
   if (el && App.player) {
-    el.textContent = App.player.name + " HP:" + App.player.hp + "/" + App.player.maxHp + " G:" + App.player.gold;
+    const lv = App.player.level ? " Lv" + App.player.level : "";
+    const poison = App.player.poisoned ? " 毒" : "";
+    el.textContent = App.player.name + lv + " HP:" + App.player.hp + "/" + App.player.maxHp + " G:" + App.player.gold + poison;
   }
 }
 
@@ -585,9 +774,9 @@ async function onItemListClick(e) {
   $("items-msg").textContent = "";
   try {
     const r = await API.useItem(btn.dataset.item);
-    if (App.player) App.player.hp = r.hp;
+    if (App.player) { App.player.hp = r.hp; if (typeof r.poisoned !== "undefined") App.player.poisoned = r.poisoned; }
     updateHpDisplay();
-    $("items-msg").textContent = r.itemName + " を使った(+" + r.healed + " HP / 現在 " + r.hp + "/" + r.maxHp + ")";
+    $("items-msg").textContent = (r.message || (r.itemName + "を使った")) + " / 現在 " + r.hp + "/" + r.maxHp;
   } catch (err) {
     $("items-msg").textContent = err.message;
   }
@@ -611,8 +800,10 @@ async function renderItems() {
   el.innerHTML = items
     .map((it) => {
       const rarity = it.rarity ? " [" + it.rarity + "]" : "";
-      const useBtn = it.healAmount > 0
-        ? " <button class=\"item-use-btn\" data-item=\"" + it.itemId + "\">使う(+" + it.healAmount + ")</button>"
+      const usable = it.healAmount > 0 || it.curePoison;
+      const eff = it.healAmount > 0 ? ("+" + it.healAmount) : "毒消し";
+      const useBtn = usable
+        ? " <button class=\"item-use-btn\" data-item=\"" + it.itemId + "\">使う(" + eff + ")</button>"
         : "";
       return "<li>" + it.name + rarity + " <span class=\"muted\">x" + it.qty + "</span>" + useBtn + "</li>";
     })
