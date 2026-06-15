@@ -505,7 +505,8 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 .poi-pin { width: 34px; height: 34px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 18px; border: 3px solid #888; box-shadow: 0 1px 6px rgba(0,0,0,0.5); }
 .poi-popup { text-align: center; min-width: 110px; }
 .poi-popup .poi-btn { margin-top: 6px; padding: 0.35rem 0.9rem; border: 0; border-radius: 6px; background: #2563eb; color: #fff; cursor: pointer; font-size: 0.85rem; }
-.poi-legend { display: flex; gap: 0.8rem; align-items: center; font-size: 0.78rem; color: #475569; margin: 0.3rem 0; }
+.poi-legend { display: flex; gap: 0.8rem; align-items: center; font-size: 0.8rem; color: #f1f5f9; margin: 0.3rem 0; }
+.poi-legend .muted, .poi-legend .small { color: #cbd5e1 !important; }
 .poi-legend .lg-item { display: inline-flex; align-items: center; gap: 0.2rem; }
 .shop-modal { position: fixed; inset: 0; z-index: 1100; background: rgba(15,23,42,0.6); display: flex; align-items: center; justify-content: center; padding: 1rem; }
 .shop-modal.hidden { display: none; }
