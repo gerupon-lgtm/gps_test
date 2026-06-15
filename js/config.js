@@ -9,6 +9,9 @@ const CONFIG = {
   // 位置をサーバーへ報告する最小間隔(ミリ秒)
   LOCATION_REPORT_INTERVAL_MS: 30000,
 
+  // 宿屋・道具屋のチェックイン可能距離(m)
+  CHECKIN_DISTANCE_METERS: 10,
+
   // GPS精度の許容値(メートル)。accuracy がこの値以下のときだけ距離判定を行う。
   GPS_ACCURACY_LIMIT_METERS: 100,
 

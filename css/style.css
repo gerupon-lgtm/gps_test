@@ -513,3 +513,23 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 .shop-modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; }
 .shop-modal-head h3 { margin: 0; font-size: 1rem; color: #1d4ed8; }
 .shop-close { border: 0; background: #e2e8f0; border-radius: 6px; width: 28px; height: 28px; font-size: 1.1rem; cursor: pointer; }
+
+/* ===== ステータスHUD(地図右上・DQ風) ===== */
+.map-wrap { position: relative; }
+.status-hud {
+  position: absolute; top: 8px; right: 8px; z-index: 500;
+  background: rgba(15,23,42,0.86); color: #fff;
+  border: 2px solid #fff; border-radius: 8px;
+  padding: 5px 8px; font-size: 0.72rem; min-width: 124px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.45); pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+.status-hud.hidden { display: none; }
+.status-hud .hud-row { display: flex; align-items: center; gap: 5px; line-height: 1.5; }
+.status-hud .hud-name { font-weight: bold; font-size: 0.8rem; margin-bottom: 2px; }
+.status-hud .hud-lv { color: #fcd34d; }
+.status-hud .hud-poison { color: #c084fc; font-weight: bold; }
+.status-hud .hud-label { width: 16px; color: #cbd5e1; flex: none; }
+.status-hud .hud-bar { flex: 1; height: 8px; background: #334155; border-radius: 4px; overflow: hidden; }
+.status-hud .hud-bar-fill { display: block; height: 100%; background: #22c55e; }
+.status-hud .hud-gold { color: #fcd34d; }

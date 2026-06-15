@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <title>GPS連動ブラウザゲーム 検証版</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
-  <link rel="stylesheet" href="./css/style.css?v=8" />
+  <link rel="stylesheet" href="./css/style.css?v=9" />
 </head>
 <body>
   <header class="app-header">
@@ -148,6 +148,7 @@
     <!-- 3. 地図(大きく) + 現在地に戻るボタン -->
     <div class="map-wrap">
       <div id="map" class="map"></div>
+      <div id="status-hud" class="status-hud hidden"></div>
       <button id="btn-recenter" class="map-recenter" title="現在地に戻る">📍 現在地</button>
     </div>
 
@@ -221,7 +222,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 
   <!-- スクリプト(読み込み順に注意: config → 各モジュール → app) -->
-  <script src="./js/config.js?v=8"></script>
+  <script src="./js/config.js?v=9"></script>
   <script src="./js/api.js?v=4"></script>
   <script src="./js/authGate.js?v=1"></script>
   <script src="./js/distance.js?v=3"></script>
@@ -231,6 +232,6 @@
   <script src="./js/storage.js?v=4"></script>
   <script src="./js/map-key.js?v=3"></script>
   <script src="./js/map.js?v=5"></script>
-  <script src="./js/app.js?v=11"></script>
+  <script src="./js/app.js?v=12"></script>
 </body>
 </html>

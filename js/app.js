@@ -648,7 +648,7 @@ function onInnEnter(innId) {
   if (!inn) return;
   const pos = App.lastPosition;
   const d = pos ? calculateDistanceMeters(pos.latitude, pos.longitude, inn.latitude, inn.longitude) : Infinity;
-  if (d > (inn.radius_meters || 50)) { showToast("近づいてください(あと約" + Math.round(d) + "m)"); return; }
+  if (d > (CONFIG.CHECKIN_DISTANCE_METERS || 10)) { showToast("近づいてください(あと約" + Math.round(d) + "m)"); return; }
   API.innRest(inn.inn_id).then((r) => {
     if (App.player) { App.player.hp = r.hp; App.player.gold = r.gold; App.player.poisoned = false; App.player.downedUntil = null; }
     updateHpDisplay();
@@ -663,7 +663,7 @@ function onShopEnter(shopId) {
   if (!shop) return;
   const pos = App.lastPosition;
   const d = pos ? calculateDistanceMeters(pos.latitude, pos.longitude, shop.latitude, shop.longitude) : Infinity;
-  if (d > (shop.radius_meters || 50)) { showToast("近づいてください(あと約" + Math.round(d) + "m)"); return; }
+  if (d > (CONFIG.CHECKIN_DISTANCE_METERS || 10)) { showToast("近づいてください(あと約" + Math.round(d) + "m)"); return; }
   App.currentShop = shop;
   closePoiPopups();
   $("shop-area-name").textContent = shop.shop_name;
@@ -723,12 +723,30 @@ async function resumeBattleIfAny() {
 }
 
 // ---- 宿屋・回復・状態 ----
+function _esc(x) {
+  return String(x).replace(/[&<>"']/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  });
+}
+
 function updateHpDisplay() {
+  const p = App.player;
   const el = document.getElementById("auth-status");
-  if (el && App.player) {
-    const lv = App.player.level ? " Lv" + App.player.level : "";
-    const poison = App.player.poisoned ? " 毒" : "";
-    el.textContent = App.player.name + lv + " HP:" + App.player.hp + "/" + App.player.maxHp + " G:" + App.player.gold + poison;
+  if (el && p) {
+    const lv = p.level ? " Lv" + p.level : "";
+    const poison = p.poisoned ? " 毒" : "";
+    el.textContent = p.name + lv + " HP:" + p.hp + "/" + p.maxHp + " G:" + p.gold + poison;
+  }
+  const hud = document.getElementById("status-hud");
+  if (hud && p) {
+    const pct = p.maxHp ? Math.max(0, Math.min(100, (p.hp / p.maxHp) * 100)) : 0;
+    const color = pct > 50 ? "#22c55e" : pct > 25 ? "#eab308" : "#ef4444";
+    hud.innerHTML =
+      '<div class="hud-row hud-name">' + _esc(p.name) + ' <span class="hud-lv">Lv' + (p.level || 1) + '</span>' +
+        (p.poisoned ? ' <span class="hud-poison">毒</span>' : '') + '</div>' +
+      '<div class="hud-row"><span class="hud-label">HP</span><span class="hud-bar"><span class="hud-bar-fill" style="width:' + pct + '%;background:' + color + '"></span></span><span class="hud-val">' + p.hp + '/' + p.maxHp + '</span></div>' +
+      '<div class="hud-row"><span class="hud-label">G</span><span class="hud-gold">' + p.gold + '</span></div>';
+    hud.classList.remove("hidden");
   }
 }
 
