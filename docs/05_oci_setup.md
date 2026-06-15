@@ -182,14 +182,13 @@ sudo systemctl reload caddy   # 証明書は自動取得・自動更新
 
 ## 8. アプリ配置と常駐(systemd)
 
-APIコードを `/home/ubuntu/app/server` に配置(git clone 等)。
+APIコードを `/home/ubuntu/app/game/server` に配置(git clone 等)。
 
 ```bash
-cd /home/ubuntu/app/server
-npm ci
-npx prisma migrate deploy
-node prisma/seed.js     # 既存CSVをDBへ投入(初回のみ)
-npm run build           # TypeScriptをビルド(構成による)
+cd /home/ubuntu/app/game/server
+npm install          # 初回。package-lock.json が生成される。以降は npm ci
+npx prisma db push   # マイグレーション不要でスキーマを直接反映(gameuser に CREATEDB 権限がないため)
+node prisma/seed.js  # 既存CSVをDBへ投入(初回のみ)
 ```
 
 `/etc/systemd/system/gameapi.service`:
@@ -200,18 +199,18 @@ Description=GPS Game API
 After=network.target postgresql.service
 
 [Service]
-WorkingDirectory=/home/ubuntu/app/server
-ExecStart=/usr/bin/node dist/index.js
-Environment=NODE_ENV=production
-Environment=PORT=3000
-Environment=DATABASE_URL=postgresql://gameuser:強いパスワード@localhost:5432/gamedb
-Environment=SESSION_SECRET=長いランダム文字列
+WorkingDirectory=/home/ubuntu/app/game/server
+ExecStart=/usr/bin/node src/index.js
+EnvironmentFile=/home/ubuntu/app/game/server/.env
 Restart=always
+RestartSec=3
 User=ubuntu
 
 [Install]
 WantedBy=multi-user.target
 ```
+
+`.env` は `EnvironmentFile` で読み込む(機密をサービスファイルに直書きしない)。
 
 ```bash
 sudo systemctl daemon-reload
@@ -295,6 +294,11 @@ crontab -e
 - ✅ Caddyで `https://gps.gerupon.uk` の正式証明書取得
 - ✅ 確認用API `GET /api/health` が `{"ok":true,...}` を返す(ブラウザ/curl両方)
 - ✅ systemd で常駐・自動起動
+- ✅ Node20 導入(NodeSource / dpkg --force-overwrite で旧Node12との競合解決)
+- ✅ PostgreSQL 導入・gameuser/gamedb 作成・localhost のみ待受
+- ✅ `npm install`(60 packages)、`npx prisma generate`、`npx prisma db push`
+- ✅ `npm run seed`: enemies=10 / items=10 / spots=37 → マスタテーブルに投入
+- ✅ `npm run test:trade`: 出品→同時購入の二重購入なし・整合性OK(行ロック+トランザクション実証)
 
 ### ハマりどころと確定対処
 
@@ -345,10 +349,126 @@ http.createServer((req, res) => {
 }).listen(PORT, "127.0.0.1");
 ```
 
-### 残タスク(次の段階)
+### 完了済みタスク
 
-1. **PostgreSQL 導入**(本ドキュメント手順6)+ DB/ユーザー作成 + 軽量設定。
-2. 本物のAPI(Fastify+Prisma)に差し替え、systemdの `ExecStart` を更新。
-3. `prisma migrate` → 既存CSVを seed 投入。
-4. 取引トランザクションの同時実行実証(設計書 7.3)。
-5. フロントの取得先をCSV/localStorage → API へ差し替え(別オリジンのためCookieはSameSite=None;Secure+CORS、または将来同一オリジン化)。
+1. ✅ **PostgreSQL 導入** + DB/ユーザー作成 + 軽量設定。
+2. ✅ **本物API(Fastify+Prisma)の実装**: `~/app/game/server/` に `src/index.js` / `prisma/schema.prisma` / `prisma/seed.js` / `tests/trade-concurrency.js` を配置。
+3. ✅ **`npx prisma db push`** → テーブル作成完了(migrate dev は P3014 のため使用しない)。
+4. ✅ **seed 投入**: enemies=10 / items=10 / spots=37 → PostgreSQL マスタテーブルに反映。
+5. ✅ **取引同時実行実証**: `npm run test:trade` = 「複製なし・整合性OK」確認。
+
+### 次の段階
+
+1. **次** systemd の `gameapi` を本物の `src/index.js` に差し替え → `sudo systemctl daemon-reload && sudo systemctl restart gameapi` → `curl https://gps.gerupon.uk/api/health` で確認。
+2. 認証API(register/login/logout/me)の実装・動作確認。
+3. フロントの取得先をCSV/localStorage → API へ差し替え(別オリジンのためCORSとCookie SameSite=None;Secure が必要、または同一オリジン化)。
+
+---
+
+## 15. つまずき実録と解決手順(2026-06-15 構築時)
+
+実際に詰まった箇所と、解決までの最短手順を要約。同じ環境を再構築する際はここを見れば再現できる。
+
+### (1) Ampere A1 が「Out of capacity」で作成できない
+- 症状: `Out of capacity for shape VM.Standard.A1.Flex`。
+- 解決: 取りやすい **VM.Standard.E2.1.Micro(AMD・Always Free)** に変更して作成。A1にこだわらない。
+- 補足: A1を狙うならAD変更/サイズ縮小/時間帯をずらして再試行。
+
+### (2) インスタンスに公開IPが付かない
+- 症状: Public IP が「Loading…」のまま/空。
+- 解決: インスタンス → Networking → VNIC → IPv4 Addresses → Edit → **Ephemeral public IP** を割り当て。
+
+### (3) MapTiler のオリジン登録でエラー
+- 症状: `Invalid origin restriction: https://...github.io/`。
+- 解決: **ホスト名のみ**を入力(`https://`・末尾`/`なし)。例 `gerupon-lgtm.github.io`。
+
+### (4) HTTPSにつながらない/証明書が取れない
+- 切り分け: `Test-NetConnection ドメイン -Port 443` と `journalctl -u caddy`。
+- 原因と解決を順に:
+  - `Timeout during connect` = ポート未到達 → **OCIセキュリティリストに 80/443(TCP, 0.0.0.0/0)** を追加。
+  - `Error getting validation data` = OS側で拒否 → **iptablesのACCEPTをREJECTより前に**挿入:
+    ```bash
+    sudo iptables -I INPUT 1 -p tcp -m tcp --dport 80 -j ACCEPT
+    sudo iptables -I INPUT 2 -p tcp -m tcp --dport 443 -j ACCEPT
+    sudo netfilter-persistent save
+    ```
+  - ログのCAが `acme-staging` のとき → ステージング指定を消す(本番 `acme-v02` にする)。
+  - 失敗を繰り返すとLet's Encryptのレート制限 → 直してから1回だけ試す。
+
+### (5) Caddyfile を保存できない(E212 read only)
+- 原因: `sudo` なしで開いた。
+- 解決: vi なら `:w !sudo tee /etc/caddy/Caddyfile` → `:q!`、または `sudo nano /etc/caddy/Caddyfile`。
+
+### (6) ブラウザのキャッシュで新JS/地図が反映されない
+- 解決: スーパーリロード(Ctrl+F5)。恒久対策として `index.html` のJS/CSS参照に `?v=2` のような版番号を付け、更新時に上げる。
+
+### (7) MapTilerをCloudflare管理のドメインで使う
+- `gps.gerupon.uk` のAレコードをVM公開IPへ、**Proxy status = DNS only(グレー雲)**。プロキシONだとCaddyの自動証明書が通りにくい。
+
+### (8) PostgreSQL のパスワードに記号(@)を入れてしまった
+- 解決: `sudo -u postgres psql -c "ALTER USER gameuser WITH PASSWORD '記号なし新パスワード';"`。
+- `could not change directory to "/home/ubuntu"` は無害な警告(`cd /tmp` してから実行すれば消える)。
+
+### (9) `.env` が編集できない/作れない
+- 原因: server ディレクトリにいない/エディタの問題。
+- 解決: 正しい `~/app/game/server` へ `cd` し、エディタを使わず作成:
+  ```bash
+  read -p "DBパスワード: " DBPASS
+  SECRET=$(openssl rand -hex 32)
+  cat > .env <<EOF2
+  DATABASE_URL=postgresql://gameuser:${DBPASS}@localhost:5432/gamedb
+  SESSION_SECRET=${SECRET}
+  INVITE_CODE=friends2026
+  PORT=3000
+  START_GOLD=100
+  EOF2
+  ```
+
+### (10) `npm ci` が失敗(package-lock.json が無い)
+- 解決: 初回は **`npm install`**(ロックファイルが生成される)。以降は `npm ci` 可。
+
+### (11) Prisma が `Node.js >= 16.13` を要求
+- 原因: Ubuntu標準の古いNode(v12)。
+- 解決: NodeSourceでNode20導入。古い `libnode-dev` と衝突したら上書き:
+  ```bash
+  sudo dpkg -i --force-overwrite /var/cache/apt/archives/nodejs_20*_amd64.deb
+  sudo apt -f install
+  node -v   # v20系
+  ```
+
+### (12) `prisma migrate dev` が P3014(shadow database 権限なし)
+- 原因: `gameuser` に `CREATEDB` 権限が無い。
+- 解決(趣味規模の最短): マイグレーション履歴を使わず **`npx prisma db push`** でスキーマを直接反映。
+  - 履歴管理したい場合は `sudo -u postgres psql -c "ALTER USER gameuser CREATEDB;"` の後に `migrate dev`。
+
+### (13) systemd を使わず手元で test:trade / 単発実行したい
+- 症状: `node` や `npm run test:trade` を直接叩くと `.env` が読まれず `DATABASE_URL` 未設定エラー。
+- 原因: `.env` はアプリ起動時に自動では読まれない(systemd の `EnvironmentFile` 経由か、手動 export が必要)。
+- 解決: 実行前に `.env` を一時的に環境変数へ読み込む:
+  ```bash
+  cd ~/app/game/server
+  export $(grep -v '^#' .env | xargs)   # .env を現在のシェルに展開
+  npm run test:trade
+  ```
+  - 常駐(systemd)では不要。サービスファイルの `EnvironmentFile=/home/ubuntu/app/game/server/.env` が自動で読み込む。
+
+### (14) `npx prisma ...` 実行時に `Ok to proceed? (y)` が出る
+- 症状: 初回 `npx prisma generate` 等で prisma CLI の取得確認プロンプトが出る。
+- 対応: 想定どおりの動作。**`y` + Enter** で続行してよい(ローカル devDependency の prisma を使う許可)。`npm install` 済みなら以降は出ない。
+- 注意: 別コマンドを貼り付け途中でこのプロンプトが出た場合は、いったん `n`/`Ctrl+C` で止め、`npm install` を先に完了させてから1コマンドずつ実行する。
+
+---
+
+## 16. 実績更新(2026-06-15 / サーバーAPI雛形)
+
+- ✅ Node20 導入、`server/`(Fastify+Prisma)を `npm install`
+- ✅ `npx prisma db push` でテーブル作成、`npm run seed` でCSV→マスタ投入(enemies=10 / items=10 / spots=37)
+- ✅ `npm run test:trade` = 「出品→同時購入の二重購入が起きない(複製なし・整合性OK)」を実証
+- 構成確定: API + PostgreSQL を同一VMに同居、HTTPSはCaddy、DBスキーマは `db push` 運用
+- ✅ **systemd `gameapi` を本物 `src/index.js` に差し替え完了**(`WorkingDirectory=/home/ubuntu/app/game/server` / `ExecStart=/usr/bin/node src/index.js` / `EnvironmentFile=.env`)。`https://gps.gerupon.uk/api/health` → `{"ok":true}`、`/api/market` → `[]` を外部から確認。
+  - 公開ルート: `/api/health` `/api/market`(一覧)。要認証: `/api/auth/*` `/api/me` `/api/inventory` `/api/market/list|buy|cancel`。
+  - 差し替え後の確認: `journalctl -u gameapi -n 30 --no-pager` に `API listening on 3000`。502 が出たら `.env` の `DATABASE_URL` / `EnvironmentFile` パスを確認。
+
+### 次の段階
+1. 戦闘サーバー権威化・宿屋(HP回復)・スポット状態APIの追加(設計書04 参照)。
+2. フロント(PWA)の取得先をCSV/localStorage → API へ差し替え(別オリジンのためCORS+Cookie SameSite=None;Secure、または同一オリジン化)。

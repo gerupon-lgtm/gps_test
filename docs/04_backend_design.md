@@ -44,10 +44,10 @@
 | 層 | 採用 | 補足 |
 |---|---|---|
 | フロント | 既存 HTML/CSS/バニラJS + PWA化 | Service Worker / manifest を追加 |
-| API | TypeScript + Fastify | 軽量・型安全。Hono でも可 |
-| ORM | Prisma | スキーマ→マイグレーション→型安全クエリ |
+| API | JavaScript(CommonJS) + Fastify | 現行実装はJS。TypeScriptへの移行は将来 |
+| ORM | Prisma | スキーマ→DB push→型安全クエリ |
 | DB | PostgreSQL(OCI VMに自前構築) | トランザクション・行ロックを活用 |
-| 認証 | 自作セッション(Cookie)+ argon2 | 招待コードで新規登録を制限 |
+| 認証 | 自作セッション(Cookie)+ Node crypto(scrypt) | 招待コードで新規登録を制限。外部依存なし |
 | 地図 | Leaflet + MapTiler タイル | APIキーは環境変数管理 |
 | バリデーション | zod | リクエスト検証(型と実行時の両方) |
 
@@ -367,7 +367,7 @@ POST /api/items/use
 - Web Service(常時起動)と PostgreSQL を作成。`DATABASE_URL` を環境変数に。
 - **接続数が少ない**ため Prisma の接続プールを小さく(例: connection_limit=3〜5)。
 - 機密(DB URL、`SESSION_SECRET`)は systemd の Environment または .env(コミット禁止)で管理。地図キーはフロント側でMapTiler+オリジン制限(露出前提)。
-- デプロイ手順: `prisma migrate deploy` → `seed`(初回) → サーバー起動。
+- デプロイ手順: `prisma db push`(gameuser に CREATEDB 権限がないため migrate deploy は使わない)→ `seed`(初回) → サーバー起動。
 - バックアップ: `pg_dump` を定期取得(無料枠は保持期間が短い)。
 
 ---
@@ -384,14 +384,15 @@ POST /api/items/use
 
 ## 12. 段階的ロードマップ(動かしながら学ぶ)
 
-1. OCI VMに PostgreSQL + Node を導入し、Caddy(HTTPS)+ systemd で疎通確認(完了済み。docs/05参照)。
-2. Prisma schema 定義 → `migrate` → 既存CSVを `seed` 投入。
-3. 認証(register/login/logout/セッション)実装。
-4. `/api/me`・`/api/master`・`/api/spot-states` 実装、フロントの取得先を差し替え。
-5. 戦闘をサーバー権威化(`/api/battle/start` `/resolve`)。報酬・ペナルティをサーバー確定に。
-6. 在庫・宿屋・アイテム使用API。
-7. 非同期取引(list/buy/cancel)をトランザクション+行ロック+冪等キーで実装。
-8. PWA化・地図タイル移行・仕上げ。
+1. ✅ OCI VMに PostgreSQL + Node20 を導入、Caddy(HTTPS)+ systemd で疎通確認(docs/05参照)。
+2. ✅ Prisma schema 定義 → `db push` → 既存CSVを `seed` 投入(enemies=10 / items=10 / spots=37)。
+3. ✅ 非同期取引トランザクション実証(`npm run test:trade` で複製なし・整合性OK 確認)。
+4. **次** systemd の `gameapi` を本物の Fastify API(`src/index.js`)に差し替え、外部から `/api/health` `/api/me` を確認。
+5. 認証(register/login/logout/セッション)実装。
+6. `/api/me`・`/api/master`・`/api/spot-states` 実装、フロントの取得先を差し替え。
+7. 戦闘をサーバー権威化(`/api/battle/start` `/resolve`)。報酬・ペナルティをサーバー確定に。
+8. 在庫・宿屋・アイテム使用API。
+9. PWA化・地図タイル移行・仕上げ。
 
 各段で「クライアントを信用しない」「整合性はトランザクションで守る」を徹底する。
 

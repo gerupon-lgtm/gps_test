@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>認証疎通テスト</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 480px; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
+  h1 { font-size: 1.2rem; }
+  fieldset { border: 1px solid #ccc; border-radius: 8px; margin-bottom: 1rem; padding: 0.8rem 1rem; }
+  legend { font-weight: bold; padding: 0 0.4rem; }
+  label { display: block; font-size: 0.85rem; margin-top: 0.5rem; }
+  input { width: 100%; box-sizing: border-box; padding: 0.4rem; margin-top: 0.2rem; border: 1px solid #bbb; border-radius: 4px; }
+  button { margin-top: 0.7rem; padding: 0.5rem 1rem; border: 0; border-radius: 6px; background: #2563eb; color: #fff; font-size: 0.9rem; cursor: pointer; }
+  button.sub { background: #6b7280; }
+  pre { background: #0f172a; color: #e2e8f0; padding: 0.8rem; border-radius: 8px; font-size: 0.8rem; white-space: pre-wrap; word-break: break-all; min-height: 2rem; }
+  .row { display: flex; gap: 0.5rem; }
+  .row button { flex: 1; }
+</style>
+</head>
+<body>
+<h1>認証疎通テスト (同一オリジン)</h1>
+<p style="font-size:0.85rem;color:#555">このページは <code>https://gps.gerupon.uk/auth-test.html</code> から開いてください(API と同一オリジン)。Cookie 認証が成立すれば「ログイン状態の取得」でプレイヤー情報が返ります。</p>
+
+<fieldset>
+  <legend>① 新規登録 (register)</legend>
+  <label>ログインID (3〜40文字)<input id="r-id" value="testuser1"></label>
+  <label>パスワード (8文字以上)<input id="r-pw" value="password123"></label>
+  <label>表示名<input id="r-name" value="テスト勇者"></label>
+  <label>招待コード (.env の INVITE_CODE)<input id="r-invite" value="friends2026"></label>
+  <button onclick="doRegister()">登録する</button>
+</fieldset>
+
+<fieldset>
+  <legend>② ログイン (login)</legend>
+  <label>ログインID<input id="l-id" value="testuser1"></label>
+  <label>パスワード<input id="l-pw" value="password123"></label>
+  <button onclick="doLogin()">ログイン</button>
+</fieldset>
+
+<fieldset>
+  <legend>③ ログイン状態の確認</legend>
+  <div class="row">
+    <button onclick="doMe()">/api/me を取得</button>
+    <button class="sub" onclick="doLogout()">ログアウト</button>
+  </div>
+</fieldset>
+
+<h2 style="font-size:1rem">結果</h2>
+<pre id="out">(ここに結果が表示されます)</pre>
+
+<script>
+const out = document.getElementById('out');
+function show(label, status, data) {
+  out.textContent = `[${label}] HTTP ${status}\n` + JSON.stringify(data, null, 2);
+}
+async function call(path, method, body) {
+  const opt = { method, credentials: 'include', headers: {} };
+  if (body) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
+  const res = await fetch(path, opt);
+  let data; try { data = await res.json(); } catch { data = await res.text(); }
+  return { status: res.status, data };
+}
+async function doRegister() {
+  const r = await call('/api/auth/register', 'POST', {
+    loginId: document.getElementById('r-id').value,
+    password: document.getElementById('r-pw').value,
+    name: document.getElementById('r-name').value,
+    inviteCode: document.getElementById('r-invite').value,
+  });
+  show('register', r.status, r.data);
+}
+async function doLogin() {
+  const r = await call('/api/auth/login', 'POST', {
+    loginId: document.getElementById('l-id').value,
+    password: document.getElementById('l-pw').value,
+  });
+  show('login', r.status, r.data);
+}
+async function doMe() {
+  const r = await call('/api/me', 'GET');
+  show('me', r.status, r.data);
+}
+async function doLogout() {
+  const r = await call('/api/auth/logout', 'POST');
+  show('logout', r.status, r.data);
+}
+</script>
+</body>
+</html>
