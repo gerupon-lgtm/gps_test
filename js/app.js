@@ -659,12 +659,39 @@ function onPickup(pickup) {
 
 // ---- POIアイコンのタップ操作(宿屋/道具屋) ----
 // マップのポップアップ内ボタンから呼ばれる(グローバル)。範囲内のみ利用可。
-function onInnEnter(innId) {
-  const inn = ((App.data && App.data.inns) || []).find((n) => n.inn_id === innId);
-  if (!inn) return;
+// POIの範囲判定(共通)
+function _poiInRange(kind, id) {
+  const arr = kind === "inn" ? (App.data && App.data.inns || []) : (App.data && App.data.shops || []);
+  const key = kind === "inn" ? "inn_id" : "shop_id";
+  const o = arr.find((x) => x[key] === id);
+  if (!o) return { ok: false, dist: Infinity, obj: null };
   const pos = App.lastPosition;
-  const d = pos ? calculateDistanceMeters(pos.latitude, pos.longitude, inn.latitude, inn.longitude) : Infinity;
-  if (d > (CONFIG.CHECKIN_DISTANCE_METERS || 10)) { showToast("近づいてください(あと約" + Math.round(d) + "m)"); return; }
+  const d = pos ? calculateDistanceMeters(pos.latitude, pos.longitude, o.latitude, o.longitude) : Infinity;
+  return { ok: d <= (CONFIG.CHECKIN_DISTANCE_METERS || 10), dist: d, obj: o };
+}
+
+// ポップアップ表示時にボタンの活性/非活性とヒントを更新
+function onPoiPopupOpen(kind, id) {
+  const r = _poiInRange(kind, id);
+  const btn = document.querySelector(".leaflet-popup-content .poi-btn");
+  const hint = document.querySelector(".leaflet-popup-content .poi-hint");
+  if (btn) btn.classList.toggle("poi-btn-disabled", !r.ok);
+  if (hint) hint.textContent = r.ok ? "" : ("範囲外: あと約" + (isFinite(r.dist) ? Math.round(r.dist) : "?") + "m");
+}
+
+// ポップアップ内ヒントを目立たせて表示(非活性ボタンのタップ時など)
+function showPoiHint(msg) {
+  const hint = document.querySelector(".leaflet-popup-content .poi-hint");
+  if (!hint) { showToast(msg); return; }
+  hint.textContent = msg;
+  hint.classList.remove("flash"); void hint.offsetWidth; hint.classList.add("flash");
+}
+
+function onInnEnter(innId) {
+  const r = _poiInRange("inn", innId);
+  if (!r.obj) return;
+  if (!r.ok) { showPoiHint("近づいてください(あと約" + (isFinite(r.dist) ? Math.round(r.dist) : "?") + "m)"); return; }
+  const inn = r.obj;
   API.innRest(inn.inn_id).then((r) => {
     if (App.player) { App.player.hp = r.hp; App.player.gold = r.gold; App.player.poisoned = false; App.player.downedUntil = null; }
     updateHpDisplay();
@@ -675,11 +702,10 @@ function onInnEnter(innId) {
 }
 
 function onShopEnter(shopId) {
-  const shop = ((App.data && App.data.shops) || []).find((s) => s.shop_id === shopId);
-  if (!shop) return;
-  const pos = App.lastPosition;
-  const d = pos ? calculateDistanceMeters(pos.latitude, pos.longitude, shop.latitude, shop.longitude) : Infinity;
-  if (d > (CONFIG.CHECKIN_DISTANCE_METERS || 10)) { showToast("近づいてください(あと約" + Math.round(d) + "m)"); return; }
+  const r = _poiInRange("shop", shopId);
+  if (!r.obj) return;
+  if (!r.ok) { showPoiHint("近づいてください(あと約" + (isFinite(r.dist) ? Math.round(r.dist) : "?") + "m)"); return; }
+  const shop = r.obj;
   App.currentShop = shop;
   closePoiPopups();
   $("shop-area-name").textContent = shop.shop_name;

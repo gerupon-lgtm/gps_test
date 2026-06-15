@@ -575,3 +575,9 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 /* 撃破済みなど 丸囲みなしの強色アイコン */
 .poi-plain { background: transparent; border: 0; }
 .poi-plain-mark { display: inline-block; font-size: 22px; font-weight: bold; line-height: 26px; text-align: center; width: 26px; text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff; }
+
+/* POIポップアップ: 非活性ボタン + 範囲外ヒント */
+.poi-popup .poi-btn-disabled { background: #9ca3af !important; opacity: 0.75; }
+.poi-popup .poi-hint { margin-top: 6px; color: #dc2626; font-size: 0.78rem; font-weight: bold; min-height: 1em; }
+.poi-popup .poi-hint.flash { animation: poihintflash 0.45s ease; }
+@keyframes poihintflash { 0% { transform: scale(1.2); } 100% { transform: scale(1); } }
