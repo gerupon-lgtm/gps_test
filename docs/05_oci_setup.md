@@ -468,7 +468,73 @@ http.createServer((req, res) => {
 - ✅ **systemd `gameapi` を本物 `src/index.js` に差し替え完了**(`WorkingDirectory=/home/ubuntu/app/game/server` / `ExecStart=/usr/bin/node src/index.js` / `EnvironmentFile=.env`)。`https://gps.gerupon.uk/api/health` → `{"ok":true}`、`/api/market` → `[]` を外部から確認。
   - 公開ルート: `/api/health` `/api/market`(一覧)。要認証: `/api/auth/*` `/api/me` `/api/inventory` `/api/market/list|buy|cancel`。
   - 差し替え後の確認: `journalctl -u gameapi -n 30 --no-pager` に `API listening on 3000`。502 が出たら `.env` の `DATABASE_URL` / `EnvironmentFile` パスを確認。
+- ✅ **認証のブラウザ疎通確認(同一オリジン)**: テストページ `server/public/auth-test.html` を `/var/www/game/` に配置し `https://gps.gerupon.uk/auth-test.html` から実施。register → 200、`/api/me` → 200(プレイヤー情報)、logout 後 `/api/me` → 401
+---
 
-### 次の段階
-1. 戦闘サーバー権威化・宿屋(HP回復)・スポット状態APIの追加(設計書04 参照)。
-2. フロント(PWA)の取得先をCSV/localStorage → API へ差し替え(別オリジンのためCORS+Cookie SameSite=None;Secure、または同一オリジン化)。
+## 17. フロント同一オリジン化 + 認証/位置報告(Phase 2a / 2026-06-15)
+
+PWA本体をCaddyから同一オリジン配信し、認証ゲートと位置報告APIを接続した段階の手順。
+
+### 追加・変更点(コード)
+- **API**: `Player` に位置カラム追加(`lastLat` `lastLng` `lastSeenAt` `shareLocation`)。`POST /api/location`(現在地報告・要認証)、`POST /api/location/share`(共有オプトイン切替)を追加。`/api/me` に `shareLocation` を含めた。
+- **フロント**: `js/api.js`(fetchラッパー)、`js/authGate.js`(未ログイン時オーバーレイ)を追加。`config.js` に `API_BASE`("" = 同一オリジン)と `LOCATION_REPORT_INTERVAL_MS`(既定30秒)。`app.js` は起動時に `AuthGate.ensureAuth()` を待ち、`onPositionUpdate` で `reportLocationThrottled()` を呼ぶ。
+- マスタ(spots/enemies/items)とプレイヤー状態(items/penalty/victory)は**当面 CSV + localStorage のまま**(DB移行は戦闘API #1 とセット)。
+
+### デプロイ手順(VM)
+
+**(0) 一度だけ: MapTiler のオリジン許可に同一オリジンを追加**
+- MapTiler の「Allowed HTTP Origins」に **`gps.gerupon.uk`** を追加(ホスト名のみ。`https://`・末尾`/`なし)。これを忘れると地図タイルが表示されない。
+
+**(1) API側: スキーマ反映してAPI再起動**
+```bash
+cd ~/app/game/server
+git pull
+npm install                 # 依存変更があれば
+npx prisma generate
+npx prisma db push          # 位置カラムをDBへ反映
+sudo systemctl restart gameapi
+journalctl -u gameapi -n 20 --no-pager   # API listening on 3000
+```
+
+**(2) フロントを配信先へコピー**
+```bash
+cd ~/app/game
+git pull
+sudo mkdir -p /var/www/game
+sudo cp -r index.html css js data assets /var/www/game/
+```
+
+**(3) MapTilerキー(map-key.js)を配置** ※ `js/map-key.js` は .gitignore 済みで git では来ない
+- 手元(ローカル)からscpで送る例:
+  ```bash
+  scp -i %USERPROFILE%\.ssh\oci_game js\map-key.js ubuntu@141.147.154.4:/home/ubuntu/map-key.js
+  ```
+  VM側で配置:
+  ```bash
+  sudo cp /home/ubuntu/map-key.js /var/www/game/js/map-key.js
+  ```
+- または VM上で直接作成:
+  ```bash
+  echo 'window.MAP_KEY = "あなたのMapTilerキー";' | sudo tee /var/www/game/js/map-key.js
+  ```
+
+**(4) 動作確認**
+- `https://gps.gerupon.uk/` を開く → 認証オーバーレイが出る → 登録/ログイン → 地図とゲーム画面へ。
+- ヘッダーに名前(G:所持金)とログアウトボタンが出る。
+- プレイ中(GPS取得 or モック位置適用)に、サーバーへ位置が送信される(既定30秒間隔)。確認:
+  ```bash
+  cd /tmp
+  sudo -u postgres psql -d gamedb -c 'SELECT name, "lastLat", "lastLng", "lastSeenAt" FROM "Player";'
+  ```
+  `lastSeenAt` が更新されていれば位置報告が届いている。
+
+### つまずきポイント
+- **地図が出ない/タイル403** → MapTiler の Allowed Origins に `gps.gerupon.uk` 未追加、または `map-key.js` 未配置。
+- **オーバーレイから進めない(401のまま)** → Cookie未保存。`https://gps.gerupon.uk`(同一オリジン)で開いているか、HTTPSか確認。
+- **/ が404、/api は動く** → `/var/www/game` にコピー漏れ。手順(2)を再実行。
+- **位置が更新されない** → 未ログイン、またはGPS未取得。デバッグパネルのモック位置で送信を確認できる。`reportLocationThrottled` は既定30秒間隔。
+
+### 先送り(#1 戦闘APIと一緒に)
+- items / penalty / victory を localStorage → DB(`PlayerItem` / `PlayerSpotState`)へ。
+- マスタ(spots/enemies/items)を CSV → API(`GET /api/spots` 等)へ。
+- 「近くのプレイヤー」一覧 `GET /api/players/nearby`(`shareLocation=true` かつ `lastSeenAt` が新しい人のみ、距離は概算で返す)。

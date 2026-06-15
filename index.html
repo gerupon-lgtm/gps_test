@@ -5,13 +5,41 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <title>GPS連動ブラウザゲーム 検証版</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
-  <link rel="stylesheet" href="./css/style.css?v=3" />
+  <link rel="stylesheet" href="./css/style.css?v=4" />
 </head>
 <body>
   <header class="app-header">
     <h1>GPS連動ブラウザゲーム <span class="badge">検証版</span></h1>
-    <button id="debug-toggle" class="debug-toggle" title="テスト機能">🛠 テスト</button>
+    <div class="header-right">
+      <span id="auth-status" class="auth-status"></span>
+      <button id="btn-logout" class="auth-logout" title="ログアウト">ログアウト</button>
+      <button id="debug-toggle" class="debug-toggle" title="テスト機能">🛠 テスト</button>
+    </div>
   </header>
+
+  <!-- ===== 認証オーバーレイ(未ログイン時に表示) ===== -->
+  <div id="auth-overlay" class="auth-overlay hidden">
+    <div class="auth-card">
+      <h2>ログイン / 新規登録</h2>
+      <div class="auth-tabs">
+        <button id="auth-tab-login" class="auth-tab active">ログイン</button>
+        <button id="auth-tab-register" class="auth-tab">新規登録</button>
+      </div>
+      <div id="auth-login-form" class="auth-form">
+        <label>ログインID<input id="auth-login-id" autocomplete="username"></label>
+        <label>パスワード<input id="auth-login-pw" type="password" autocomplete="current-password"></label>
+        <button id="auth-login-btn" class="btn">ログイン</button>
+      </div>
+      <div id="auth-register-form" class="auth-form hidden">
+        <label>ログインID(3〜40文字)<input id="auth-reg-id" autocomplete="username"></label>
+        <label>パスワード(8文字以上)<input id="auth-reg-pw" type="password" autocomplete="new-password"></label>
+        <label>表示名<input id="auth-reg-name"></label>
+        <label>招待コード<input id="auth-reg-invite"></label>
+        <button id="auth-register-btn" class="btn">登録する</button>
+      </div>
+      <p id="auth-msg" class="auth-msg"></p>
+    </div>
+  </div>
 
   <!-- ===== デバッグ/テストパネル ===== -->
   <section id="debug-panel" class="debug-panel hidden">
@@ -149,14 +177,16 @@
   </main>
 
   <footer class="app-footer">
-    <p class="muted small">PoC / 技術検証版 — GitHub Pages + Geolocation API + CSV + localStorage</p>
+    <p class="muted small">PoC / 技術検証版 — OCI(Caddy同一オリジン) + Geolocation API + サーバーAPI(認証/取引/位置)</p>
   </footer>
 
   <!-- Leaflet(地図ライブラリ) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 
   <!-- スクリプト(読み込み順に注意: config → 各モジュール → app) -->
-  <script src="./js/config.js?v=5"></script>
+  <script src="./js/config.js?v=6"></script>
+  <script src="./js/api.js?v=1"></script>
+  <script src="./js/authGate.js?v=1"></script>
   <script src="./js/distance.js?v=3"></script>
   <script src="./js/csvLoader.js?v=3"></script>
   <script src="./js/geo.js?v=3"></script>
@@ -164,6 +194,6 @@
   <script src="./js/storage.js?v=3"></script>
   <script src="./js/map-key.js?v=3"></script>
   <script src="./js/map.js?v=3"></script>
-  <script src="./js/app.js?v=3"></script>
+  <script src="./js/app.js?v=6"></script>
 </body>
 </html>

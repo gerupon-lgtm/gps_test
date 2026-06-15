@@ -105,7 +105,36 @@ app.get("/api/me", requireAuth(async (req) => {
   return {
     id: pl.id, name: pl.name, level: pl.level, exp: pl.exp,
     hp: pl.hp, maxHp: pl.maxHp, attack: pl.attack, defense: pl.defense, gold: pl.gold,
+    shareLocation: pl.shareLocation,
   };
+}));
+
+// ---- 位置報告(「近くのプレイヤー」用。非リアルタイム) ----
+// プレイ中にクライアントが一定間隔で現在地を送る。サーバーは最終位置のみ保持。
+app.post("/api/location", requireAuth(async (req, reply) => {
+  const schema = z.object({
+    lat: z.number().min(-90).max(90),
+    lng: z.number().min(-180).max(180),
+  });
+  const p = schema.safeParse(req.body);
+  if (!p.success) return reply.code(400).send({ error: "緯度経度が不正です" });
+  await prisma.player.update({
+    where: { id: req.player.id },
+    data: { lastLat: p.data.lat, lastLng: p.data.lng, lastSeenAt: new Date() },
+  });
+  return { ok: true };
+}));
+
+// 位置共有のオプトイン切替
+app.post("/api/location/share", requireAuth(async (req, reply) => {
+  const schema = z.object({ share: z.boolean() });
+  const p = schema.safeParse(req.body);
+  if (!p.success) return reply.code(400).send({ error: "入力が不正です" });
+  await prisma.player.update({
+    where: { id: req.player.id },
+    data: { shareLocation: p.data.share },
+  });
+  return { ok: true, shareLocation: p.data.share };
 }));
 
 // ---- 在庫 ----

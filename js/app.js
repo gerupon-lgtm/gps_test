@@ -31,6 +31,13 @@ function showScreen(name) {
 // 初期化
 // =====================================================
 async function init() {
+  // 認証ゲート: 未ログインなら登録/ログイン画面を表示し、成立まで待つ
+  try {
+    await AuthGate.ensureAuth();
+  } catch (e) {
+    console.error("認証状態の確認に失敗しました:", e);
+  }
+
   try {
     App.data = await loadGameData();
     $("data-status").textContent =
@@ -120,6 +127,7 @@ function onPositionUpdate(pos) {
   App.lastPosition = pos;
   $("geo-error").textContent = "";
   updateExplore(pos);
+  reportLocationThrottled(pos); // サーバーへ現在地を報告(一定間隔)
 }
 
 function onPositionError(err) {

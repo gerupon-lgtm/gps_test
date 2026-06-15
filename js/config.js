@@ -3,6 +3,12 @@
 // 検証用パラメータ。ここを書き換えるだけで挙動を調整できる。
 // =====================================================
 const CONFIG = {
+  // API のベースURL(同一オリジン配信なら空文字でOK。別オリジン時のみ "https://gps.gerupon.uk" 等)
+  API_BASE: "",
+
+  // 位置をサーバーへ報告する最小間隔(ミリ秒)
+  LOCATION_REPORT_INTERVAL_MS: 30000,
+
   // GPS精度の許容値(メートル)。accuracy がこの値以下のときだけ距離判定を行う。
   GPS_ACCURACY_LIMIT_METERS: 100,
 

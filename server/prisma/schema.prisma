@@ -39,6 +39,12 @@ model Player {
   gold      Int      @default(0)
   updatedAt DateTime @updatedAt
 
+  // 位置情報(「近くのプレイヤー」用。非リアルタイム)
+  lastLat       Float?
+  lastLng       Float?
+  lastSeenAt    DateTime?   // 位置を最後に報告した時刻。古いものは一覧で除外
+  shareLocation Boolean   @default(false)  // 位置共有のオプトイン
+
   items      PlayerItem[]
   spotStates PlayerSpotState[]
   listings   MarketListing[]   @relation("seller")

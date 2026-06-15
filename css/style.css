@@ -423,3 +423,36 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
   .modal-overlay { align-items: center; }
   .modal-card { border-radius: 16px; }
 }
+
+/* ===== 認証(ログイン/登録)オーバーレイ ===== */
+.header-right { display: flex; align-items: center; gap: 0.4rem; }
+.auth-status { font-size: 0.8rem; color: #cbd5e1; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.auth-logout { font-size: 0.72rem; padding: 0.25rem 0.5rem; border: 0; border-radius: 6px; background: #475569; color: #fff; cursor: pointer; }
+.auth-logout:hover { background: #334155; }
+
+.auth-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(15, 23, 42, 0.75);
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+}
+.auth-overlay.hidden { display: none; }
+.auth-card {
+  background: #fff; color: #1e293b; width: 100%; max-width: 360px;
+  border-radius: 12px; padding: 1.2rem 1.3rem; box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+}
+.auth-card h2 { font-size: 1.05rem; margin: 0 0 0.8rem; }
+.auth-tabs { display: flex; gap: 0.4rem; margin-bottom: 0.9rem; }
+.auth-tab {
+  flex: 1; padding: 0.5rem; border: 1px solid #cbd5e1; background: #f1f5f9;
+  border-radius: 8px; cursor: pointer; font-size: 0.85rem; color: #475569;
+}
+.auth-tab.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+.auth-form { display: flex; flex-direction: column; gap: 0.5rem; }
+.auth-form.hidden { display: none; }
+.auth-form label { font-size: 0.78rem; color: #475569; display: flex; flex-direction: column; gap: 0.2rem; }
+.auth-form input {
+  padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem;
+}
+.auth-form .btn { margin-top: 0.4rem; }
+.auth-msg { font-size: 0.8rem; color: #dc2626; min-height: 1.2rem; margin: 0.6rem 0 0; }
