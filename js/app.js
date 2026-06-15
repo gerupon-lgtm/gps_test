@@ -86,6 +86,8 @@ function bindEvents() {
   $("shop-buy-list").addEventListener("click", onShopBuyClick);
   $("shop-sell-list").addEventListener("click", onShopSellClick);
   $("shop-close").addEventListener("click", closeShopModal);
+  $("shop-confirm-yes").addEventListener("click", onShopConfirmYes);
+  $("shop-confirm-no").addEventListener("click", hideShopConfirm);
   $("status-hud").addEventListener("click", openMenu);
   $("menu-content").addEventListener("click", onMenuClick);
   $("menu-overlay").addEventListener("click", function (e) { if (e.target.id === "menu-overlay") closeMenu(); });
@@ -494,6 +496,7 @@ async function doBattleAction(action, itemId) {
     renderBattle();
     updateHpDisplay();
   }
+  if (action === "useItem") renderItems();
 }
 
 function onAttack() { doBattleAction("attack"); }
@@ -671,46 +674,63 @@ function onShopEnter(shopId) {
   buildShopLists();
 }
 
-function closeShopModal() { hide("shop-modal"); App.currentShop = null; }
+function closeShopModal() { hide("shop-confirm"); App._pendingShop = null; hide("shop-modal"); App.currentShop = null; }
 
 async function buildShopLists() {
   let buy = [];
   try { buy = await API.shopItems(); } catch (e) { buy = []; }
   $("shop-buy-list").innerHTML = (buy && buy.length)
-    ? buy.map((it) => "<li><span>" + it.name + " <span class=\"muted\">" + it.price + "G</span></span><button class=\"shop-buy-btn\" data-item=\"" + it.itemId + "\">買う</button></li>").join("")
+    ? buy.map((it) => "<li><span>" + _esc(it.name) + " <span class=\"muted\">" + it.price + "G</span></span><button class=\"shop-buy-btn\" data-item=\"" + it.itemId + "\" data-name=\"" + _esc(it.name) + "\" data-price=\"" + it.price + "\">買う</button></li>").join("")
     : "<li class=\"muted\">商品なし</li>";
   let inv = [];
   try { inv = await API.inventory(); } catch (e) { inv = []; }
   const sellable = (inv || []).filter((i) => i.sellable && i.qty > 0);
   $("shop-sell-list").innerHTML = sellable.length
-    ? sellable.map((i) => "<li><span>" + i.name + " <span class=\"muted\">x" + i.qty + "</span></span><button class=\"shop-sell-btn\" data-item=\"" + i.itemId + "\">売(" + i.sellPrice + ")</button></li>").join("")
+    ? sellable.map((i) => "<li><span>" + _esc(i.name) + " <span class=\"muted\">x" + i.qty + "</span></span><button class=\"shop-sell-btn\" data-item=\"" + i.itemId + "\" data-name=\"" + _esc(i.name) + "\" data-price=\"" + i.sellPrice + "\">売(" + i.sellPrice + ")</button></li>").join("")
     : "<li class=\"muted\">売れる物なし</li>";
 }
 
-async function onShopBuyClick(e) {
+function onShopBuyClick(e) {
   const btn = e.target.closest(".shop-buy-btn");
   if (!btn || !App.currentShop) return;
-  btn.disabled = true;
-  try {
-    const r = await API.buyItem(App.currentShop.shop_id, btn.dataset.item, 1);
-    if (App.player) App.player.gold = r.gold;
-    updateHpDisplay();
-    $("shop-msg").textContent = r.itemName + " を買った(残り " + r.gold + "G)";
-  } catch (err) { $("shop-msg").textContent = err.message; }
-  buildShopLists();
+  askShopConfirm("buy", btn.dataset.item, btn.dataset.name, Number(btn.dataset.price));
 }
 
-async function onShopSellClick(e) {
+function onShopSellClick(e) {
   const btn = e.target.closest(".shop-sell-btn");
   if (!btn) return;
-  btn.disabled = true;
+  askShopConfirm("sell", btn.dataset.item, btn.dataset.name, Number(btn.dataset.price));
+}
+
+// 確認ダイアログ
+function askShopConfirm(kind, itemId, name, price) {
+  App._pendingShop = { kind: kind, itemId: itemId };
+  const verb = kind === "buy" ? "買い" : "売り";
+  $("shop-confirm-msg").textContent = "「" + name + "」を " + price + "G で" + verb + "ますか？";
+  show("shop-confirm");
+}
+
+function hideShopConfirm() { hide("shop-confirm"); App._pendingShop = null; }
+
+async function onShopConfirmYes() {
+  const pend = App._pendingShop;
+  if (!pend || !App.currentShop) { hideShopConfirm(); return; }
+  hide("shop-confirm");
   try {
-    const r = await API.sellItem(btn.dataset.item, 1);
-    if (App.player) App.player.gold = r.gold;
+    if (pend.kind === "buy") {
+      const r = await API.buyItem(App.currentShop.shop_id, pend.itemId, 1);
+      if (App.player) App.player.gold = r.gold;
+      $("shop-msg").textContent = r.itemName + " を買った(残り " + r.gold + "G)";
+    } else {
+      const r = await API.sellItem(pend.itemId, 1);
+      if (App.player) App.player.gold = r.gold;
+      $("shop-msg").textContent = r.itemName + " を売った(+" + r.gain + "G / 残り " + r.gold + "G)";
+    }
     updateHpDisplay();
-    $("shop-msg").textContent = r.itemName + " を売った(+" + r.gain + "G / 残り " + r.gold + "G)";
   } catch (err) { $("shop-msg").textContent = err.message; }
+  App._pendingShop = null;
   buildShopLists();
+  renderItems();
 }
 
 // リロード時に進行中の戦闘があれば復帰
@@ -815,6 +835,7 @@ async function onMenuClick(e) {
       $("menu-msg").textContent = r.message || (r.itemName + "をつかった");
     } catch (err) { $("menu-msg").textContent = err.message; }
     renderItemMenu();
+    renderItems();
   }
 }
 

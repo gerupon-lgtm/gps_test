@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <title>GPS連動ブラウザゲーム 検証版</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
-  <link rel="stylesheet" href="./css/style.css?v=12" />
+  <link rel="stylesheet" href="./css/style.css?v=13" />
 </head>
 <body>
   <header class="app-header">
@@ -72,6 +72,13 @@
         <div class="shop-col"><h4>売る</h4><ul id="shop-sell-list" class="shop-list"></ul></div>
       </div>
       <p id="shop-msg" class="muted small"></p>
+      <div id="shop-confirm" class="shop-confirm hidden">
+        <p id="shop-confirm-msg"></p>
+        <div class="shop-confirm-btns">
+          <button id="shop-confirm-yes" class="btn">はい</button>
+          <button id="shop-confirm-no" class="btn btn-sub">いいえ</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -239,6 +246,6 @@
   <script src="./js/storage.js?v=4"></script>
   <script src="./js/map-key.js?v=3"></script>
   <script src="./js/map.js?v=7"></script>
-  <script src="./js/app.js?v=15"></script>
+  <script src="./js/app.js?v=17"></script>
 </body>
 </html>

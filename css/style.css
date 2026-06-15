@@ -559,3 +559,10 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 .dq-eff { color: #86efac; font-size: 0.85em; }
 .dq-stats div { padding: 2px 0; }
 .dq-msg { margin: 6px 0 0; color: #fcd34d; min-height: 1.2em; font-size: 0.85rem; }
+
+/* ===== 道具屋 確認ダイアログ ===== */
+.shop-modal-card { position: relative; }
+.shop-confirm { position: absolute; inset: 0; background: rgba(10,18,48,0.94); color: #fff; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; padding: 1.2rem; text-align: center; }
+.shop-confirm.hidden { display: none; }
+#shop-confirm-msg { font-size: 1rem; margin: 0; }
+.shop-confirm-btns { display: flex; gap: 1rem; }
