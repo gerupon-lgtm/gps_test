@@ -1,98 +1,58 @@
 // =====================================================
 // storage.js
-// localStorage への保存・読み込み
+// サーバー権威版: スポット状態(クールダウン)はサーバーの
+// /api/spot-states から取得し、メモリにキャッシュする。
+// 関数シグネチャは旧localStorage版と互換(app.js 側の変更を最小化)。
 // =====================================================
 
-function _read(key, fallback) {
-  try {
-    const raw = localStorage.getItem(key);
-    if (raw === null) return fallback;
-    return JSON.parse(raw);
-  } catch (e) {
-    console.warn("localStorage読み込み失敗:", key, e);
-    return fallback;
-  }
+let _spotStates = {}; // { spotId: { penaltyUntil: ISO|null, victoryUntil: ISO|null } }
+
+// サーバー応答(配列)でキャッシュを差し替える
+function setSpotStates(list) {
+  _spotStates = {};
+  (list || []).forEach((s) => {
+    _spotStates[s.spotId] = { penaltyUntil: s.penaltyUntil, victoryUntil: s.victoryUntil };
+  });
 }
 
-function _write(key, value) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (e) {
-    console.warn("localStorage保存失敗:", key, e);
-  }
+function _activeUntil(v) { return !!v && new Date(v).getTime() > Date.now(); }
+function _remain(v) {
+  if (!v) return 0;
+  const d = new Date(v).getTime() - Date.now();
+  return d > 0 ? Math.ceil(d / 1000) : 0;
 }
-
-// ---- アイテム ----
-
-// itemRecord: { itemId, spotId, acquiredAt }
-function saveItem(itemRecord) {
-  const items = getItems();
-  items.push(itemRecord);
-  _write(CONFIG.STORAGE_KEYS.items, items);
-}
-
-function getItems() {
-  return _read(CONFIG.STORAGE_KEYS.items, []);
+function _ensure(spotId) {
+  if (!_spotStates[spotId]) _spotStates[spotId] = { penaltyUntil: null, victoryUntil: null };
+  return _spotStates[spotId];
 }
 
 // ---- 敗北ペナルティ ----
-
-// spotId 単位で再戦可能時刻(ISO文字列)を保存
-function savePenalty(spotId, retryAt) {
-  const penalties = _read(CONFIG.STORAGE_KEYS.penalties, {});
-  penalties[spotId] = { retryAt };
-  _write(CONFIG.STORAGE_KEYS.penalties, penalties);
-}
-
+function savePenalty(spotId, retryAt) { _ensure(spotId).penaltyUntil = retryAt; }
 function getPenalty(spotId) {
-  const penalties = _read(CONFIG.STORAGE_KEYS.penalties, {});
-  return penalties[spotId] || null;
+  return _spotStates[spotId] ? { retryAt: _spotStates[spotId].penaltyUntil } : null;
 }
-
 function isPenaltyActive(spotId) {
-  const p = getPenalty(spotId);
-  if (!p || !p.retryAt) return false;
-  return Date.now() < new Date(p.retryAt).getTime();
+  return _activeUntil(_spotStates[spotId] && _spotStates[spotId].penaltyUntil);
 }
-
 function getPenaltyRemainingSeconds(spotId) {
-  const p = getPenalty(spotId);
-  if (!p || !p.retryAt) return 0;
-  const diff = new Date(p.retryAt).getTime() - Date.now();
-  return diff > 0 ? Math.ceil(diff / 1000) : 0;
+  return _remain(_spotStates[spotId] && _spotStates[spotId].penaltyUntil);
 }
 
 // ---- 勝利クールダウン(撃破後の再出現待ち) ----
-
-// spotId 単位で再出現時刻(ISO文字列)を保存
-function saveVictoryCooldown(spotId, availableAt) {
-  const v = _read(CONFIG.STORAGE_KEYS.victories, {});
-  v[spotId] = { availableAt };
-  _write(CONFIG.STORAGE_KEYS.victories, v);
-}
-
+function saveVictoryCooldown(spotId, availableAt) { _ensure(spotId).victoryUntil = availableAt; }
 function getVictoryCooldown(spotId) {
-  const v = _read(CONFIG.STORAGE_KEYS.victories, {});
-  return v[spotId] || null;
+  return _spotStates[spotId] ? { availableAt: _spotStates[spotId].victoryUntil } : null;
 }
-
 function isVictoryCooldownActive(spotId) {
-  const c = getVictoryCooldown(spotId);
-  if (!c || !c.availableAt) return false;
-  return Date.now() < new Date(c.availableAt).getTime();
+  return _activeUntil(_spotStates[spotId] && _spotStates[spotId].victoryUntil);
+}
+function getVictoryRemainingSeconds(spotId) {
+  return _remain(_spotStates[spotId] && _spotStates[spotId].victoryUntil);
 }
 
-function getVictoryRemainingSeconds(spotId) {
-  const c = getVictoryCooldown(spotId);
-  if (!c || !c.availableAt) return 0;
-  const diff = new Date(c.availableAt).getTime() - Date.now();
-  return diff > 0 ? Math.ceil(diff / 1000) : 0;
-}
+// ---- 在庫はサーバーから取得(renderItems が API.inventory を使用) ----
+function getItems() { return []; }
+function saveItem() { /* サーバー権威化により不要(戦闘勝利でサーバーが付与) */ }
 
 // ---- デバッグ ----
-
-function clearDebugData() {
-  localStorage.removeItem(CONFIG.STORAGE_KEYS.items);
-  localStorage.removeItem(CONFIG.STORAGE_KEYS.penalties);
-  localStorage.removeItem(CONFIG.STORAGE_KEYS.victories);
-}
+function clearDebugData() { _spotStates = {}; }

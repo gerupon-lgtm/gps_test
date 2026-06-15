@@ -44,11 +44,17 @@ model Player {
   lastLng       Float?
   lastSeenAt    DateTime?   // 位置を最後に報告した時刻。古いものは一覧で除外
   shareLocation Boolean   @default(false)  // 位置共有のオプトイン
+  healAt        DateTime?   // 敗北クールダウン後に少量回復する予約時刻(成熟したら適用)
+  poisoned      Boolean   @default(false)  // 毒状態
+  poisonTickAt  DateTime?   // 毒ダメージの遅延計算起点
+  downedUntil   DateTime?   // 戦闘不能(グローバル)の解除時刻。経過後に回復して復帰
+  lastPickupAt  DateTime?   // 散策拾いのクールダウン基準
 
   items      PlayerItem[]
   spotStates PlayerSpotState[]
   listings   MarketListing[]   @relation("seller")
   battleLogs BattleLog[]
+  battleSession BattleSession?
 }
 
 model ItemMaster {
@@ -58,6 +64,10 @@ model ItemMaster {
   rarity      String  @default("normal")
   type        String  @default("misc")
   basePrice   Int     @default(0)
+  healAmount  Int     @default(0)  // 使用時のHP回復量(0=回復アイテムでない)
+  category    String  @default("misc")  // heal/antidote/material/currency/collectible
+  curePoison  Boolean @default(false)      // 使用で毒解除
+  sellable    Boolean @default(true)       // 道具屋で売れるか
   playerItems PlayerItem[]
   listings    MarketListing[]
 }
@@ -69,6 +79,11 @@ model EnemyMaster {
   attack     Int
   defense    Int
   image      String @default("")
+  expBase      Int    @default(0)   // 基本経験値
+  goldBase     Int    @default(0)   // 基本ゴールド
+  dropItemId   String?              // 確率ドロップ品(任意)
+  dropRate     Float  @default(0)   // ドロップ率(0-1)
+  poisonChance Float  @default(0)   // 毒付与率(0-1)
   spots      SpotMaster[]
   battleLogs BattleLog[]
 }
@@ -130,4 +145,33 @@ model BattleLog {
   spotId    String
   result    String
   createdAt DateTime @default(now())
+}
+
+model InnMaster {
+  innId   String @id
+  name    String
+  lat     Float
+  lng     Float
+  radiusM Int    @default(50)
+}
+
+model ShopMaster {
+  shopId  String @id
+  name    String
+  lat     Float
+  lng     Float
+  radiusM Int    @default(50)
+}
+
+model BattleSession {
+  id            String   @id @default(cuid())
+  playerId      String   @unique
+  player        Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  spotId        String
+  enemyId       String
+  enemyHp       Int
+  turn          Int      @default(0)
+  poisonApplied Boolean  @default(false)
+  status        String   @default("active") // active / won / lost
+  createdAt     DateTime @default(now())
 }

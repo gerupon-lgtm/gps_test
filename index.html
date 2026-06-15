@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <title>GPS連動ブラウザゲーム 検証版</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
-  <link rel="stylesheet" href="./css/style.css?v=4" />
+  <link rel="stylesheet" href="./css/style.css?v=5" />
 </head>
 <body>
   <header class="app-header">
@@ -81,6 +81,7 @@
     <section class="items-box">
       <h2>所持アイテム(<span id="items-count">0</span>)</h2>
       <ul id="items-list" class="items-list"></ul>
+      <p id="items-msg" class="muted small"></p>
     </section>
   </main>
 
@@ -106,6 +107,13 @@
       <h3>⚔ 敵が出現!</h3>
       <p><strong id="enemy-area-enemy">-</strong> <span class="muted small">@ <span id="enemy-area-name">-</span></span></p>
       <button id="btn-start-battle" class="btn btn-primary">戦闘開始</button>
+    </section>
+
+    <section id="inn-area" class="inn-area hidden">
+      <h3>🛏 宿屋</h3>
+      <p><strong id="inn-area-name">-</strong> <span class="muted small">で休めます</span></p>
+      <button id="btn-rest" class="btn btn-primary">休む(HP全回復)</button>
+      <p id="inn-msg" class="muted small"></p>
     </section>
 
     <p id="geo-error" class="error-text"></p>
@@ -184,16 +192,16 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 
   <!-- スクリプト(読み込み順に注意: config → 各モジュール → app) -->
-  <script src="./js/config.js?v=6"></script>
-  <script src="./js/api.js?v=1"></script>
+  <script src="./js/config.js?v=7"></script>
+  <script src="./js/api.js?v=2"></script>
   <script src="./js/authGate.js?v=1"></script>
   <script src="./js/distance.js?v=3"></script>
-  <script src="./js/csvLoader.js?v=3"></script>
+  <script src="./js/csvLoader.js?v=4"></script>
   <script src="./js/geo.js?v=3"></script>
   <script src="./js/battle.js?v=3"></script>
-  <script src="./js/storage.js?v=3"></script>
+  <script src="./js/storage.js?v=4"></script>
   <script src="./js/map-key.js?v=3"></script>
   <script src="./js/map.js?v=3"></script>
-  <script src="./js/app.js?v=6"></script>
+  <script src="./js/app.js?v=7"></script>
 </body>
 </html>

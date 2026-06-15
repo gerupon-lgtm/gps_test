@@ -456,3 +456,19 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 }
 .auth-form .btn { margin-top: 0.4rem; }
 .auth-msg { font-size: 0.8rem; color: #dc2626; min-height: 1.2rem; margin: 0.6rem 0 0; }
+
+/* ===== 宿屋・回復アイテムUI(#1) ===== */
+.inn-area {
+  background: #ecfdf5; border: 1px solid #6ee7b7; border-radius: 10px;
+  padding: 0.7rem 0.9rem; margin: 0.5rem 0;
+}
+.inn-area h3 { margin: 0 0 0.3rem; font-size: 0.95rem; color: #047857; }
+.inn-area.hidden { display: none; }
+#inn-msg { margin: 0.4rem 0 0; }
+.item-use-btn {
+  font-size: 0.72rem; padding: 0.15rem 0.5rem; margin-left: 0.3rem;
+  border: 0; border-radius: 5px; background: #10b981; color: #fff; cursor: pointer;
+}
+.item-use-btn:hover { background: #059669; }
+.item-use-btn:disabled { background: #9ca3af; cursor: default; }
+#items-msg { margin: 0.4rem 0 0; color: #047857; }

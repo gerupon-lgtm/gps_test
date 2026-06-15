@@ -538,3 +538,76 @@ sudo cp -r index.html css js data assets /var/www/game/
 - items / penalty / victory を localStorage → DB(`PlayerItem` / `PlayerSpotState`)へ。
 - マスタ(spots/enemies/items)を CSV → API(`GET /api/spots` 等)へ。
 - 「近くのプレイヤー」一覧 `GET /api/players/nearby`(`shareLocation=true` かつ `lastSeenAt` が新しい人のみ、距離は概算で返す)。
+
+---
+
+## 18. 戦闘サーバー権威化 + HP回復/宿屋(#1 / 2026-06-15)
+
+戦闘・報酬・クールダウン・在庫・HPをサーバー(DB)権威に移行し、HP永続化と3系統の回復を追加した段階。
+
+### HPモデル(死亡概念なし)
+- **HPは永続**(戦闘間で持ち越し)。戦闘で蓄積ダメージ。HPが0でも「死亡」せず、回復を待って再挑戦できる。
+- **回復は3系統**:
+  1. **敗北クールダウン後の少量回復**: 敗北するとそのスポットに `penaltyMin` 分のペナルティ。その時刻(`healAt`)を過ぎると、次のアクセス時にMAXの一定%を回復(遅延適用・cron不要)。割合は `DEFEAT_HEAL_PERCENT`(既定0.3)。
+  2. **アイテム使用**: `POST /api/item/use`。`ItemMaster.healAmount > 0` のアイテムを1個消費してHP回復(ポーション+30 / 薬草+15 / エリクサー+100)。
+  3. **宿屋で全回復**: `POST /api/inn/rest`。地図上の固定地点(`inns.csv`)に近づくと「休む」でHP=MAX。
+
+### 追加・変更(コード/データ)
+- **スキーマ**: `Player.healAt`(回復予約)、`ItemMaster.healAmount`、新規 `InnMaster`(innId/name/lat/lng/radiusM)。
+- **API**: `POST /api/battle`(全ターンを決定論計算しturns配列を返す。勝敗・報酬・クールダウン・HPを1トランザクションで確定)、`POST /api/item/use`、`POST /api/inn/rest`、`GET /api/spot-states`、`GET /api/inns`。`/api/me` は遅延回復を反映し hp/maxHp/healAt を返す。`/api/inventory` に healAmount を追加。
+- **データ**: `items.csv` に `heal` 列、`inns.csv` 新規(活動エリア 35.01,136.66 付近に2件・**要・実地点へ編集**)、`seed.js` を heal/inn 対応に。
+- **フロント**: 戦闘はサーバー応答のturnsを攻撃ボタンで再生(`battle.js` のローカル計算は不使用)。クールダウンは `GET /api/spot-states`(`storage.js` はメモリキャッシュ化)、在庫は `GET /api/inventory`。HP表示・回復アイテム「使う」・宿屋「休む」UIを追加。
+
+### チューニング(`server/.env` で上書き可)
+```
+VICTORY_COOLDOWN_MIN=60      # 勝利後に敵が再出現しない時間(分)
+DEFEAT_HEAL_PERCENT=0.3      # 敗北クールダウン後に回復するMAX割合
+BATTLE_USE_RANDOM=false      # 戦闘ダメージに乱数を使うか
+BATTLE_RANDOM_RANGE=0.2      # 乱数幅(±20%)。USE_RANDOM=true時のみ
+```
+
+### デプロイ手順(VM)
+
+**(1) API: スキーマ反映 + 再シード + 再起動**
+```bash
+cd ~/app/game/server
+git pull
+npm install
+npx prisma generate
+npx prisma db push          # healAt / healAmount / InnMaster を反映
+npm run seed                # items(heal) と inns を投入。出力: ... inns=2
+sudo systemctl restart gameapi
+journalctl -u gameapi -n 20 --no-pager
+```
+
+**(2) フロント再配置**(`data/inns.csv` も含める)
+```bash
+cd ~/app/game
+git pull
+sudo cp -r index.html css js data assets /var/www/game/
+```
+※ `js/map-key.js` は配置済みなら不要(git では来ないため消さないこと)。
+
+**(3) 動作確認**(`https://gps.gerupon.uk/`)
+- ログイン → デバッグパネルでスポット座標にモック移動 → **戦闘開始 → 攻撃**でターン再生 → 勝敗。
+- 勝利: 報酬がアイテム一覧(`/api/inventory`)に増える。一定時間「撃破済み」。
+- 敗北: そのスポットが「再戦待機中」。クールダウン後、HPがMAXの約30%回復。
+- 回復アイテム(ポーション等)を所持していれば一覧の「使う」でHP回復。
+- 宿屋座標(inns.csv)に近づくと「🛏 宿屋」が出て「休む」で全回復。
+- DB確認:
+  ```bash
+  cd /tmp
+  sudo -u postgres psql -d gamedb -c 'SELECT name, hp, "maxHp", "healAt" FROM "Player";'
+  sudo -u postgres psql -d gamedb -c 'SELECT "playerId","spotId","penaltyUntil","victoryUntil" FROM "PlayerSpotState";'
+  ```
+
+### つまずきポイント
+- **宿屋が出ない** → `inns.csv` を配置(手順2)し座標が現在地付近か確認。半径外。`npm run seed` で `inns=` が出ているか。
+- **戦闘が409**(再戦待機/再出現待ち) → 仕様どおり。`/api/spot-states` のクールダウン中。時間経過か別スポットへ。
+- **「使う」ボタンが出ない** → そのアイテムは `healAmount=0`(回復アイテムでない)。`items.csv` の heal 列で調整し再seed。
+- **HPが回復しすぎ/しなさすぎ** → `.env` の `DEFEAT_HEAL_PERCENT` を調整して `systemctl restart gameapi`。
+- **位置偽装** → 仕様どおり対策しない。サーバーは spotId/innId を信頼(クライアントが近接判定)。必要なら将来 `lastLat/lng` で近接チェックを追加可能。
+
+### 先送り(任意の今後)
+- マスタ(spots/enemies/items/inns)を CSV → API(`GET /api/spots` 等)へ一本化。
+- 「近くのプレイヤー」一覧 `GET /api/players/nearby`(`shareLocation` かつ `lastSeenAt` が新しい人のみ・距離概算)。

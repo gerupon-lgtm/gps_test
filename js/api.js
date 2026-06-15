@@ -30,6 +30,12 @@ const API = {
   logout: () => _api("/api/auth/logout", "POST"),
   postLocation: (lat, lng) => _api("/api/location", "POST", { lat, lng }),
   setShare: (share) => _api("/api/location/share", "POST", { share }),
+  battle: (spotId) => _api("/api/battle", "POST", { spotId }),
+  useItem: (itemId) => _api("/api/item/use", "POST", { itemId }),
+  innRest: (innId) => _api("/api/inn/rest", "POST", { innId }),
+  spotStates: () => _api("/api/spot-states", "GET"),
+  inventory: () => _api("/api/inventory", "GET"),
+  inns: () => _api("/api/inns", "GET"),
 };
 
 // 位置報告(throttle付き)。プレイ中の位置更新ごとに呼ばれても一定間隔でのみ送信。

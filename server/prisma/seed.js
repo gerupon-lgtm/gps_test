@@ -23,17 +23,29 @@ async function main() {
   const spots = read("spots.csv");
 
   for (const e of enemies) {
+    const fields = {
+      name: e.enemy_name, hp: +e.hp, attack: +e.attack, defense: +e.defense, image: e.image || "",
+      expBase: +(e.exp_base || 0), goldBase: +(e.gold_base || 0),
+      dropItemId: e.drop_item_id || null, dropRate: +(e.drop_rate || 0), poisonChance: +(e.poison_chance || 0),
+    };
     await prisma.enemyMaster.upsert({
       where: { enemyId: e.enemy_id },
-      update: { name: e.enemy_name, hp: +e.hp, attack: +e.attack, defense: +e.defense, image: e.image || "" },
-      create: { enemyId: e.enemy_id, name: e.enemy_name, hp: +e.hp, attack: +e.attack, defense: +e.defense, image: e.image || "" },
+      update: fields,
+      create: { enemyId: e.enemy_id, ...fields },
     });
   }
   for (const i of items) {
+    const fields = {
+      name: i.item_name, description: i.description || "", rarity: i.rarity || "normal",
+      healAmount: +(i.heal || 0), category: i.category || "misc",
+      curePoison: String(i.cure_poison) === "1" || String(i.cure_poison).toLowerCase() === "true",
+      basePrice: +(i.price || 0),
+      sellable: i.sellable === undefined ? true : (String(i.sellable) === "1" || String(i.sellable).toLowerCase() === "true"),
+    };
     await prisma.itemMaster.upsert({
       where: { itemId: i.item_id },
-      update: { name: i.item_name, description: i.description || "", rarity: i.rarity || "normal" },
-      create: { itemId: i.item_id, name: i.item_name, description: i.description || "", rarity: i.rarity || "normal" },
+      update: fields,
+      create: { itemId: i.item_id, ...fields },
     });
   }
   for (const s of spots) {
@@ -51,7 +63,30 @@ async function main() {
       },
     });
   }
-  console.log(`seed done: enemies=${enemies.length} items=${items.length} spots=${spots.length}`);
+
+  // 宿屋(任意。inns.csv が無ければスキップ)
+  let inns = [];
+  try { inns = read("inns.csv"); } catch (e) { inns = []; }
+  for (const n of inns) {
+    await prisma.innMaster.upsert({
+      where: { innId: n.inn_id },
+      update: { name: n.inn_name, lat: +n.latitude, lng: +n.longitude, radiusM: +n.radius_meters },
+      create: { innId: n.inn_id, name: n.inn_name, lat: +n.latitude, lng: +n.longitude, radiusM: +n.radius_meters },
+    });
+  }
+
+  // 道具屋(任意。shops.csv が無ければスキップ)
+  let shops = [];
+  try { shops = read("shops.csv"); } catch (e) { shops = []; }
+  for (const sh of shops) {
+    await prisma.shopMaster.upsert({
+      where: { shopId: sh.shop_id },
+      update: { name: sh.shop_name, lat: +sh.latitude, lng: +sh.longitude, radiusM: +sh.radius_meters },
+      create: { shopId: sh.shop_id, name: sh.shop_name, lat: +sh.latitude, lng: +sh.longitude, radiusM: +sh.radius_meters },
+    });
+  }
+
+  console.log(`seed done: enemies=${enemies.length} items=${items.length} spots=${spots.length} inns=${inns.length} shops=${shops.length}`);
 }
 
 main().then(() => prisma.$disconnect()).catch(async (e) => {

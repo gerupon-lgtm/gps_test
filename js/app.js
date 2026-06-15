@@ -9,6 +9,8 @@ const App = {
   lastPosition: null,
   currentBattle: null,
   currentSpot: null,
+  currentInn: null,
+  player: null,    // /api/me のプレイヤー状態(HP/gold等)
   waitTimer: null, // 待機(敗北/勝利)カウントダウン用
 };
 
@@ -34,9 +36,12 @@ async function init() {
   // 認証ゲート: 未ログインなら登録/ログイン画面を表示し、成立まで待つ
   try {
     await AuthGate.ensureAuth();
+    App.player = AuthGate.player;
   } catch (e) {
     console.error("認証状態の確認に失敗しました:", e);
   }
+  await refreshSpotStates();
+  updateHpDisplay();
 
   try {
     App.data = await loadGameData();
@@ -70,6 +75,8 @@ function bindEvents() {
     updateExplore(App.lastPosition);
   });
   $("btn-start-battle").addEventListener("click", onStartBattle);
+  $("btn-rest").addEventListener("click", onRest);
+  $("items-list").addEventListener("click", onItemListClick);
   $("btn-recenter").addEventListener("click", () => {
     if (!recenterMap()) {
       $("geo-error").textContent = "現在地がまだ取得できていません";
@@ -114,6 +121,7 @@ function onStart() {
   refreshMapSize();
   $("geo-error").textContent = "";
   App.watching = true;
+  refreshSpotStates();
   startWatchPosition(onPositionUpdate, onPositionError);
 }
 
@@ -147,6 +155,9 @@ function updateExplore(pos) {
 
   // 地図に現在地を反映(スポットは地図に出さない)
   updateMapPosition(pos.latitude, pos.longitude, pos.accuracy);
+
+  // 宿屋の近接判定(スポットとは独立に常に評価)
+  updateInnArea(pos);
 
   if (!App.data || App.data.spots.length === 0) {
     setNearestName("-");
@@ -396,66 +407,97 @@ function formatTime(sec) {
 // =====================================================
 // 戦闘
 // =====================================================
-function onStartBattle() {
+// 戦闘開始: サーバーが結果を確定(全ターン)し、クライアントはそれを再生する。
+async function onStartBattle() {
   const spot = App.currentSpot;
-  const enemy = App._pendingEnemy;
-  if (!spot || !enemy) return;
-  // 念のため: クールダウン/ペナルティ中は戦闘開始しない
+  if (!spot) return;
   if (isPenaltyActive(spot.spot_id) || isVictoryCooldownActive(spot.spot_id)) {
     updateExplore(App.lastPosition);
     return;
   }
-  App.currentBattle = createBattleState(enemy);
+  $("btn-start-battle").disabled = true;
+  let res;
+  try {
+    res = await API.battle(spot.spot_id);
+  } catch (e) {
+    $("btn-start-battle").disabled = false;
+    await refreshSpotStates();
+    setJudge("", e.message || "戦闘を開始できませんでした");
+    updateExplore(App.lastPosition);
+    return;
+  }
+  const enemy = App._pendingEnemy || {};
+  App.currentBattle = {
+    res: res,
+    enemyName: res.enemyName,
+    enemyMaxHp: res.enemyMaxHp,
+    playerMaxHp: res.playerMaxHp,
+    enemyImage: enemy.image || "",
+    turnIndex: 0,
+    curEnemyHp: res.enemyMaxHp,
+    curPlayerHp: res.startPlayerHp,
+    logLines: ["戦闘開始! " + res.enemyName + " が現れた"],
+    finished: false,
+    result: null,
+  };
   renderBattle();
   showScreen("battle");
 }
 
+// 攻撃ボタン: サーバーが返したターンを1つずつ再生する。
 function onAttack() {
-  if (!App.currentBattle || App.currentBattle.finished) return;
-  processTurn(App.currentBattle);
+  const b = App.currentBattle;
+  if (!b || b.finished) return;
+  const turn = b.res.turns[b.turnIndex];
+  if (!turn) { finishBattle(); return; }
+  turn.logs.forEach((l) => b.logLines.push(l));
+  b.curPlayerHp = turn.playerHp;
+  b.curEnemyHp = turn.enemyHp;
+  b.turnIndex++;
   renderBattle();
+  if (b.turnIndex >= b.res.turns.length) finishBattle();
+}
 
-  if (App.currentBattle.finished) {
-    if (App.currentBattle.result === "win") {
-      handleWin();
-    } else {
-      handleLose();
-    }
-  }
+function finishBattle() {
+  const b = App.currentBattle;
+  b.finished = true;
+  b.result = b.res.result;
+  if (App.player) App.player.hp = b.res.finalPlayerHp;
+  if (b.result === "win") handleWin(b.res);
+  else handleLose(b.res);
+  renderBattle();
+  updateHpDisplay();
 }
 
 function renderBattle() {
   const b = App.currentBattle;
-  $("battle-enemy-name").textContent = b.enemy.enemy_name;
-  $("battle-enemy-hp").textContent = b.enemyHp;
-  $("battle-enemy-hp-max").textContent = b.enemy.hp;
-  $("battle-player-hp").textContent = b.playerHp;
+  $("battle-enemy-name").textContent = b.enemyName;
+  $("battle-enemy-hp").textContent = b.curEnemyHp;
+  $("battle-enemy-hp-max").textContent = b.enemyMaxHp;
+  $("battle-player-hp").textContent = b.curPlayerHp;
   $("battle-player-hp-max").textContent = b.playerMaxHp;
 
-  $("enemy-hp-bar").style.width = (b.enemyHp / b.enemy.hp) * 100 + "%";
-  $("player-hp-bar").style.width = (b.playerHp / b.playerMaxHp) * 100 + "%";
+  $("enemy-hp-bar").style.width = (b.enemyMaxHp ? (b.curEnemyHp / b.enemyMaxHp) * 100 : 0) + "%";
+  $("player-hp-bar").style.width = (b.playerMaxHp ? (b.curPlayerHp / b.playerMaxHp) * 100 : 0) + "%";
 
   const img = $("battle-enemy-img");
-  if (b.enemy.image) {
-    img.src = b.enemy.image;
-    img.alt = b.enemy.enemy_name;
-    img.onerror = () => {
-      img.style.display = "none";
-    };
+  if (b.enemyImage) {
+    img.src = b.enemyImage;
+    img.alt = b.enemyName;
+    img.onerror = () => { img.style.display = "none"; };
     img.style.display = "block";
   } else {
     img.style.display = "none";
   }
 
   const logEl = $("battle-log");
-  logEl.innerHTML = b.log.map((l) => "<div>" + l + "</div>").join("");
+  logEl.innerHTML = b.logLines.map((l) => "<div>" + l + "</div>").join("");
   logEl.scrollTop = logEl.scrollHeight;
 
   if (b.finished) {
     $("btn-attack").disabled = true;
     $("battle-result").textContent = b.result === "win" ? "勝利!" : "敗北...";
-    $("battle-result").className =
-      "battle-result " + (b.result === "win" ? "win" : "lose");
+    $("battle-result").className = "battle-result " + (b.result === "win" ? "win" : "lose");
     show("battle-result");
     show("btn-battle-back");
   } else {
@@ -465,63 +507,114 @@ function renderBattle() {
   }
 }
 
-function handleWin() {
+function handleWin(res) {
   const spot = App.currentSpot;
-
-  // 勝利クールダウンを保存(同じ敵が一定時間再出現しない)
-  const cdMin = CONFIG.VICTORY_COOLDOWN_MINUTES || 0;
-  const availableAt = new Date(Date.now() + cdMin * 60 * 1000).toISOString();
-  saveVictoryCooldown(spot.spot_id, availableAt);
-
-  const item = App.data.itemMap[spot.reward_item_id];
-  if (!item) {
-    $("battle-reward").textContent =
-      "アイテムデータが見つかりません (item_id: " + spot.reward_item_id + ")";
-    show("battle-reward");
-    return;
+  if (res.victoryUntil) saveVictoryCooldown(spot.spot_id, res.victoryUntil);
+  let txt;
+  if (res.reward) {
+    txt = "「" + res.reward.name + "」を手に入れた!(この敵は約" + res.cooldownMin + "分後に再出現)";
+  } else {
+    txt = "勝利した!(この敵は約" + res.cooldownMin + "分後に再出現)";
   }
-  const record = {
-    itemId: item.item_id,
-    spotId: spot.spot_id,
-    acquiredAt: new Date().toISOString(),
-  };
-  saveItem(record);
-  $("battle-reward").textContent =
-    "「" + item.item_name + "」を手に入れた!(このスポットの敵は約" + cdMin + "分後に再出現)";
+  $("battle-reward").textContent = txt;
   show("battle-reward");
   renderItems();
 }
 
-function handleLose() {
+function handleLose(res) {
   const spot = App.currentSpot;
-  const minutes = spot.penalty_minutes || 0;
-  const retryAt = new Date(Date.now() + minutes * 60 * 1000).toISOString();
-  savePenalty(spot.spot_id, retryAt);
-  $("battle-reward").textContent = minutes + "分間、このスポットでは再戦できません";
+  if (res.penaltyUntil) savePenalty(spot.spot_id, res.penaltyUntil);
+  $("battle-reward").textContent =
+    res.cooldownMin + "分間このスポットでは再戦できません(時間経過後に少しHPが回復します)";
   show("battle-reward");
+}
+
+// ---- 宿屋・回復・状態 ----
+function updateHpDisplay() {
+  const el = document.getElementById("auth-status");
+  if (el && App.player) {
+    el.textContent = App.player.name + " HP:" + App.player.hp + "/" + App.player.maxHp + " G:" + App.player.gold;
+  }
+}
+
+async function refreshSpotStates() {
+  try { setSpotStates(await API.spotStates()); } catch (e) { /* 未ログイン等は無視 */ }
+}
+
+function updateInnArea(pos) {
+  const area = $("inn-area");
+  if (!area) return;
+  const inns = (App.data && App.data.inns) || [];
+  let near = null;
+  for (const inn of inns) {
+    if (inn.latitude == null || inn.longitude == null) continue;
+    const d = calculateDistanceMeters(pos.latitude, pos.longitude, inn.latitude, inn.longitude);
+    const radius = inn.radius_meters || 50;
+    if (d <= radius && (near === null || d < near.distance)) near = { inn: inn, distance: d };
+  }
+  if (near) {
+    show("inn-area");
+    $("inn-area-name").textContent = near.inn.inn_name;
+    App.currentInn = near.inn;
+    $("btn-rest").disabled = false;
+  } else {
+    hide("inn-area");
+    App.currentInn = null;
+  }
+}
+
+async function onRest() {
+  const inn = App.currentInn;
+  if (!inn) return;
+  $("btn-rest").disabled = true;
+  try {
+    const r = await API.innRest(inn.inn_id);
+    if (App.player) App.player.hp = r.hp;
+    updateHpDisplay();
+    $("inn-msg").textContent = r.innName + "で休んだ。HP全回復! (" + r.hp + "/" + r.maxHp + ")";
+  } catch (e) {
+    $("inn-msg").textContent = e.message;
+  }
+  $("btn-rest").disabled = false;
+}
+
+async function onItemListClick(e) {
+  const btn = e.target.closest(".item-use-btn");
+  if (!btn) return;
+  btn.disabled = true;
+  $("items-msg").textContent = "";
+  try {
+    const r = await API.useItem(btn.dataset.item);
+    if (App.player) App.player.hp = r.hp;
+    updateHpDisplay();
+    $("items-msg").textContent = r.itemName + " を使った(+" + r.healed + " HP / 現在 " + r.hp + "/" + r.maxHp + ")";
+  } catch (err) {
+    $("items-msg").textContent = err.message;
+  }
+  renderItems();
 }
 
 // =====================================================
 // 所持アイテム表示
 // =====================================================
-function renderItems() {
-  const items = getItems();
+async function renderItems() {
   const el = $("items-list");
-  if (items.length === 0) {
+  let items = [];
+  try { items = await API.inventory(); } catch (e) { items = []; }
+  if (!items || items.length === 0) {
     el.innerHTML = "<li class='muted'>まだアイテムを持っていません</li>";
     $("items-count").textContent = "0";
     return;
   }
-  $("items-count").textContent = String(items.length);
+  const total = items.reduce((a, i) => a + i.qty, 0);
+  $("items-count").textContent = String(total);
   el.innerHTML = items
-    .slice()
-    .reverse()
-    .map((rec) => {
-      const item = App.data ? App.data.itemMap[rec.itemId] : null;
-      const name = item ? item.item_name : rec.itemId;
-      const rarity = item && item.rarity ? " [" + item.rarity + "]" : "";
-      const t = new Date(rec.acquiredAt).toLocaleString("ja-JP");
-      return "<li>" + name + rarity + " <span class=\"muted\">(" + rec.spotId + " / " + t + ")</span></li>";
+    .map((it) => {
+      const rarity = it.rarity ? " [" + it.rarity + "]" : "";
+      const useBtn = it.healAmount > 0
+        ? " <button class=\"item-use-btn\" data-item=\"" + it.itemId + "\">使う(+" + it.healAmount + ")</button>"
+        : "";
+      return "<li>" + it.name + rarity + " <span class=\"muted\">x" + it.qty + "</span>" + useBtn + "</li>";
     })
     .join("");
 }

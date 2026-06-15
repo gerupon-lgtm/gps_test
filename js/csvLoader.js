@@ -78,6 +78,16 @@ function normalizeItems(rows) {
   }));
 }
 
+function normalizeInns(rows) {
+  return rows.map((r) => ({
+    inn_id: r.inn_id,
+    inn_name: r.inn_name,
+    latitude: toNumberOrNull(r.latitude),
+    longitude: toNumberOrNull(r.longitude),
+    radius_meters: toNumberOrNull(r.radius_meters),
+  }));
+}
+
 // 3ファイルをまとめて読み込む
 async function loadGameData() {
   const [spotsText, enemiesText, itemsText] = await Promise.all([
@@ -90,11 +100,20 @@ async function loadGameData() {
   const enemies = normalizeEnemies(parseCsv(enemiesText));
   const items = normalizeItems(parseCsv(itemsText));
 
+  // 宿屋(任意。inns.csv が無ければ空配列)
+  let inns = [];
+  try {
+    const innsText = await loadCsv(CONFIG.PATHS.inns);
+    inns = normalizeInns(parseCsv(innsText));
+  } catch (e) {
+    inns = [];
+  }
+
   // インデックス化
   const enemyMap = {};
   enemies.forEach((e) => (enemyMap[e.enemy_id] = e));
   const itemMap = {};
   items.forEach((i) => (itemMap[i.item_id] = i));
 
-  return { spots, enemies, items, enemyMap, itemMap };
+  return { spots, enemies, items, enemyMap, itemMap, inns };
 }
