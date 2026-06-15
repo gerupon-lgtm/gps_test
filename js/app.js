@@ -216,21 +216,11 @@ function updateExplore(pos) {
 
   const spot = enterable.spot;
 
-  // 敗北ペナルティ中
-  if (isPenaltyActive(spot.spot_id)) {
-    const sec = getPenaltyRemainingSeconds(spot.spot_id);
-    setJudge("", spot.spot_name + ": あと " + formatTime(sec) + " で再戦可能");
+  // 撃破済み/待機中はクールダウン中。残り時間は画面に出さず、スポット一覧で確認する。
+  if (isPenaltyActive(spot.spot_id) || isVictoryCooldownActive(spot.spot_id)) {
+    clearWaitTimer();
+    setJudge("", "");
     hideEnemyArea();
-    startWaitCountdown(spot, pos, "penalty");
-    return;
-  }
-
-  // 勝利クールダウン中(撃破後の再出現待ち)
-  if (isVictoryCooldownActive(spot.spot_id)) {
-    const sec = getVictoryRemainingSeconds(spot.spot_id);
-    setJudge("", spot.spot_name + ": あと " + formatTime(sec) + " で敵が再出現");
-    hideEnemyArea();
-    startWaitCountdown(spot, pos, "victory");
     return;
   }
 

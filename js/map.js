@@ -136,13 +136,13 @@ function _escapeHtml(x) {
     return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
   });
 }
-function _poiIcon(emoji, bg) {
+function _poiIcon(emoji, color) {
   return L.divIcon({
     className: "poi-icon",
-    html: '<div class="poi-pin" style="background:' + bg + '">' + emoji + "</div>",
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-    popupAnchor: [0, -16],
+    html: '<div class="poi-pin" style="border-color:' + color + '">' + emoji + "</div>",
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
+    popupAnchor: [0, -18],
   });
 }
 function setPois(inns, shops) {

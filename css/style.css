@@ -502,7 +502,7 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 
 /* ===== POIアイコン / 凡例 / 道具屋モーダル ===== */
 .poi-icon { background: transparent; border: 0; }
-.poi-pin { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.4); }
+.poi-pin { width: 34px; height: 34px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 18px; border: 3px solid #888; box-shadow: 0 1px 6px rgba(0,0,0,0.5); }
 .poi-popup { text-align: center; min-width: 110px; }
 .poi-popup .poi-btn { margin-top: 6px; padding: 0.35rem 0.9rem; border: 0; border-radius: 6px; background: #2563eb; color: #fff; cursor: pointer; font-size: 0.85rem; }
 .poi-legend { display: flex; gap: 0.8rem; align-items: center; font-size: 0.78rem; color: #475569; margin: 0.3rem 0; }
@@ -533,3 +533,10 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 .status-hud .hud-bar { flex: 1; height: 8px; background: #334155; border-radius: 4px; overflow: hidden; }
 .status-hud .hud-bar-fill { display: block; height: 100%; background: #22c55e; }
 .status-hud .hud-gold { color: #fcd34d; }
+
+
+/* 凡例のピン見本 */
+.poi-legend .lg-pin { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: #fff; font-size: 13px; border: 2px solid #888; margin-right: 3px; vertical-align: middle; }
+.poi-legend .lg-pin.inn { border-color: #16a34a; }
+.poi-legend .lg-pin.shop { border-color: #2563eb; }
+.poi-legend .lg-item { display: inline-flex; align-items: center; }
