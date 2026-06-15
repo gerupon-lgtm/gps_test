@@ -571,3 +571,7 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 /* なかま/情報行(選択不可) */
 .dq-list li.dq-flat { cursor: default; }
 .dq-list li.dq-flat::before { content: ""; }
+
+/* 撃破済みなど 丸囲みなしの強色アイコン */
+.poi-plain { background: transparent; border: 0; }
+.poi-plain-mark { display: inline-block; font-size: 22px; font-weight: bold; line-height: 26px; text-align: center; width: 26px; text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff; }

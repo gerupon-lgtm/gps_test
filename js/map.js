@@ -172,7 +172,18 @@ function setPois(inns, shops) {
 }
 function closePoiPopups() { if (_map) _map.closePopup(); }
 
-// 撃破済みスポット(灰の⚔アイコン)
+// 丸囲みなしの強色アイコン(背景・枠なし。白フチで視認性確保)
+function _plainIcon(glyph, color) {
+  return L.divIcon({
+    className: "poi-plain",
+    html: '<span class="poi-plain-mark" style="color:' + color + '">' + glyph + "</span>",
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
+    popupAnchor: [0, -12],
+  });
+}
+
+// 撃破済みスポット(丸なし・強色の旗アイコン)
 let _defeatedLayer = null;
 function setDefeatedSpots(spots) {
   if (!isLeafletReady()) return;
@@ -182,8 +193,8 @@ function setDefeatedSpots(spots) {
   _defeatedLayer = L.layerGroup();
   (spots || []).forEach(function (sp) {
     if (sp.latitude == null || sp.longitude == null) return;
-    L.marker([sp.latitude, sp.longitude], { icon: _poiIcon("⚔", "#9ca3af") })
-      .bindPopup("⚔ " + _escapeHtml(sp.spot_name) + "(撃破済み)").addTo(_defeatedLayer);
+    L.marker([sp.latitude, sp.longitude], { icon: _plainIcon("⚑", "#dc2626") })
+      .bindPopup("⚑ " + _escapeHtml(sp.spot_name) + "(撃破済み)").addTo(_defeatedLayer);
   });
   _defeatedLayer.addTo(_map);
 }
