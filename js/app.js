@@ -82,10 +82,10 @@ function bindEvents() {
     updateExplore(App.lastPosition);
   });
   $("btn-start-battle").addEventListener("click", onStartBattle);
-  $("btn-rest").addEventListener("click", onRest);
   $("items-list").addEventListener("click", onItemListClick);
   $("shop-buy-list").addEventListener("click", onShopBuyClick);
   $("shop-sell-list").addEventListener("click", onShopSellClick);
+  $("shop-close").addEventListener("click", closeShopModal);
   $("btn-recenter").addEventListener("click", () => {
     if (!recenterMap()) {
       $("geo-error").textContent = "現在地がまだ取得できていません";
@@ -164,10 +164,6 @@ function updateExplore(pos) {
 
   // 地図に現在地を反映(スポットは地図に出さない)
   updateMapPosition(pos.latitude, pos.longitude, pos.accuracy);
-
-  // 宿屋・道具屋の近接判定(スポットとは独立に常に評価)
-  updateInnArea(pos);
-  updateShopArea(pos);
 
   if (!App.data || App.data.spots.length === 0) {
     setNearestName("-");
@@ -645,28 +641,38 @@ function onPickup(pickup) {
   renderItems();
 }
 
-// ---- 道具屋(近接UI) ----
-function updateShopArea(pos) {
-  const area = $("shop-area");
-  if (!area) return;
-  const shops = (App.data && App.data.shops) || [];
-  let near = null;
-  for (const sh of shops) {
-    if (sh.latitude == null || sh.longitude == null) continue;
-    const d = calculateDistanceMeters(pos.latitude, pos.longitude, sh.latitude, sh.longitude);
-    if (d <= (sh.radius_meters || 50) && (near === null || d < near.distance)) near = { shop: sh, distance: d };
-  }
-  if (near) {
-    const same = App.currentShop && App.currentShop.shop_id === near.shop.shop_id;
-    App.currentShop = near.shop;
-    $("shop-area-name").textContent = near.shop.shop_name;
-    show("shop-area");
-    if (!same) buildShopLists();
-  } else {
-    hide("shop-area");
-    App.currentShop = null;
-  }
+// ---- POIアイコンのタップ操作(宿屋/道具屋) ----
+// マップのポップアップ内ボタンから呼ばれる(グローバル)。範囲内のみ利用可。
+function onInnEnter(innId) {
+  const inn = ((App.data && App.data.inns) || []).find((n) => n.inn_id === innId);
+  if (!inn) return;
+  const pos = App.lastPosition;
+  const d = pos ? calculateDistanceMeters(pos.latitude, pos.longitude, inn.latitude, inn.longitude) : Infinity;
+  if (d > (inn.radius_meters || 50)) { showToast("近づいてください(あと約" + Math.round(d) + "m)"); return; }
+  API.innRest(inn.inn_id).then((r) => {
+    if (App.player) { App.player.hp = r.hp; App.player.gold = r.gold; App.player.poisoned = false; App.player.downedUntil = null; }
+    updateHpDisplay();
+    updateDownedOverlay();
+    showToast(inn.inn_name + "で休んだ。HP全回復! (-" + (r.cost || 0) + "G)");
+    closePoiPopups();
+  }).catch((e) => showToast(e.message));
 }
+
+function onShopEnter(shopId) {
+  const shop = ((App.data && App.data.shops) || []).find((s) => s.shop_id === shopId);
+  if (!shop) return;
+  const pos = App.lastPosition;
+  const d = pos ? calculateDistanceMeters(pos.latitude, pos.longitude, shop.latitude, shop.longitude) : Infinity;
+  if (d > (shop.radius_meters || 50)) { showToast("近づいてください(あと約" + Math.round(d) + "m)"); return; }
+  App.currentShop = shop;
+  closePoiPopups();
+  $("shop-area-name").textContent = shop.shop_name;
+  $("shop-msg").textContent = "";
+  show("shop-modal");
+  buildShopLists();
+}
+
+function closeShopModal() { hide("shop-modal"); App.currentShop = null; }
 
 async function buildShopLists() {
   let buy = [];
@@ -730,42 +736,7 @@ async function refreshSpotStates() {
   try { setSpotStates(await API.spotStates()); } catch (e) { /* 未ログイン等は無視 */ }
 }
 
-function updateInnArea(pos) {
-  const area = $("inn-area");
-  if (!area) return;
-  const inns = (App.data && App.data.inns) || [];
-  let near = null;
-  for (const inn of inns) {
-    if (inn.latitude == null || inn.longitude == null) continue;
-    const d = calculateDistanceMeters(pos.latitude, pos.longitude, inn.latitude, inn.longitude);
-    const radius = inn.radius_meters || 50;
-    if (d <= radius && (near === null || d < near.distance)) near = { inn: inn, distance: d };
-  }
-  if (near) {
-    show("inn-area");
-    $("inn-area-name").textContent = near.inn.inn_name;
-    App.currentInn = near.inn;
-    $("btn-rest").disabled = false;
-  } else {
-    hide("inn-area");
-    App.currentInn = null;
-  }
-}
 
-async function onRest() {
-  const inn = App.currentInn;
-  if (!inn) return;
-  $("btn-rest").disabled = true;
-  try {
-    const r = await API.innRest(inn.inn_id);
-    if (App.player) App.player.hp = r.hp;
-    updateHpDisplay();
-    $("inn-msg").textContent = r.innName + "で休んだ。HP全回復! (" + r.hp + "/" + r.maxHp + ")";
-  } catch (e) {
-    $("inn-msg").textContent = e.message;
-  }
-  $("btn-rest").disabled = false;
-}
 
 async function onItemListClick(e) {
   const btn = e.target.closest(".item-use-btn");

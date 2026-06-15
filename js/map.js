@@ -129,23 +129,40 @@ function recenterMap() {
   return true;
 }
 
-// 宿屋(緑)・道具屋(青)のマーカーを表示(敵スポットは出さない方針)
+// 宿屋・道具屋を絵文字アイコンで表示。タップでポップアップ(休む/入店)。
 let _poiLayer = null;
+function _escapeHtml(x) {
+  return String(x).replace(/[&<>"']/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  });
+}
+function _poiIcon(emoji, bg) {
+  return L.divIcon({
+    className: "poi-icon",
+    html: '<div class="poi-pin" style="background:' + bg + '">' + emoji + "</div>",
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+    popupAnchor: [0, -16],
+  });
+}
 function setPois(inns, shops) {
   if (!isLeafletReady()) return;
   if (!_mapInited) initMap();
   if (!_map) return;
   if (_poiLayer) { try { _map.removeLayer(_poiLayer); } catch (e) {} }
   _poiLayer = L.layerGroup();
-  (inns || []).forEach((n) => {
+  (inns || []).forEach(function (n) {
     if (n.latitude == null || n.longitude == null) return;
-    L.circleMarker([n.latitude, n.longitude], { radius: 6, color: "#fff", weight: 1, fillColor: "#16a34a", fillOpacity: 1 })
-      .bindPopup("🛏 " + n.inn_name).addTo(_poiLayer);
+    var html = '<div class="poi-popup"><b>🛏 ' + _escapeHtml(n.inn_name) + "</b><br>" +
+      "<button class=\"poi-btn\" onclick=\"onInnEnter('" + n.inn_id + "')\">休む</button></div>";
+    L.marker([n.latitude, n.longitude], { icon: _poiIcon("🛏", "#16a34a") }).bindPopup(html).addTo(_poiLayer);
   });
-  (shops || []).forEach((sh) => {
+  (shops || []).forEach(function (sh) {
     if (sh.latitude == null || sh.longitude == null) return;
-    L.circleMarker([sh.latitude, sh.longitude], { radius: 6, color: "#fff", weight: 1, fillColor: "#2563eb", fillOpacity: 1 })
-      .bindPopup("🛒 " + sh.shop_name).addTo(_poiLayer);
+    var html = '<div class="poi-popup"><b>🛒 ' + _escapeHtml(sh.shop_name) + "</b><br>" +
+      "<button class=\"poi-btn\" onclick=\"onShopEnter('" + sh.shop_id + "')\">入店</button></div>";
+    L.marker([sh.latitude, sh.longitude], { icon: _poiIcon("🛒", "#2563eb") }).bindPopup(html).addTo(_poiLayer);
   });
   _poiLayer.addTo(_map);
 }
+function closePoiPopups() { if (_map) _map.closePopup(); }

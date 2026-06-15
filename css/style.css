@@ -499,3 +499,17 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 .shop-buy-btn, .shop-sell-btn { font-size: 0.72rem; padding: 0.2rem 0.5rem; border: 0; border-radius: 5px; color: #fff; cursor: pointer; }
 .shop-buy-btn { background: #2563eb; }
 .shop-sell-btn { background: #6b7280; }
+
+/* ===== POIアイコン / 凡例 / 道具屋モーダル ===== */
+.poi-icon { background: transparent; border: 0; }
+.poi-pin { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.4); }
+.poi-popup { text-align: center; min-width: 110px; }
+.poi-popup .poi-btn { margin-top: 6px; padding: 0.35rem 0.9rem; border: 0; border-radius: 6px; background: #2563eb; color: #fff; cursor: pointer; font-size: 0.85rem; }
+.poi-legend { display: flex; gap: 0.8rem; align-items: center; font-size: 0.78rem; color: #475569; margin: 0.3rem 0; }
+.poi-legend .lg-item { display: inline-flex; align-items: center; gap: 0.2rem; }
+.shop-modal { position: fixed; inset: 0; z-index: 1100; background: rgba(15,23,42,0.6); display: flex; align-items: center; justify-content: center; padding: 1rem; }
+.shop-modal.hidden { display: none; }
+.shop-modal-card { background: #fff; color: #1e293b; width: 100%; max-width: 420px; border-radius: 12px; padding: 1rem 1.1rem; max-height: 80vh; overflow-y: auto; }
+.shop-modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; }
+.shop-modal-head h3 { margin: 0; font-size: 1rem; color: #1d4ed8; }
+.shop-close { border: 0; background: #e2e8f0; border-radius: 6px; width: 28px; height: 28px; font-size: 1.1rem; cursor: pointer; }

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <title>GPS連動ブラウザゲーム 検証版</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
-  <link rel="stylesheet" href="./css/style.css?v=7" />
+  <link rel="stylesheet" href="./css/style.css?v=8" />
 </head>
 <body>
   <header class="app-header">
@@ -52,6 +52,21 @@
 
   <!-- ===== トースト ===== -->
   <div id="toast" class="toast hidden"></div>
+
+  <!-- ===== 道具屋モーダル ===== -->
+  <div id="shop-modal" class="shop-modal hidden">
+    <div class="shop-modal-card">
+      <div class="shop-modal-head">
+        <h3>🛒 <span id="shop-area-name">道具屋</span></h3>
+        <button id="shop-close" class="shop-close">×</button>
+      </div>
+      <div class="shop-cols">
+        <div class="shop-col"><h4>買う</h4><ul id="shop-buy-list" class="shop-list"></ul></div>
+        <div class="shop-col"><h4>売る</h4><ul id="shop-sell-list" class="shop-list"></ul></div>
+      </div>
+      <p id="shop-msg" class="muted small"></p>
+    </div>
+  </div>
 
   <!-- ===== デバッグ/テストパネル ===== -->
   <section id="debug-panel" class="debug-panel hidden">
@@ -121,23 +136,14 @@
       <button id="btn-start-battle" class="btn btn-primary">戦闘開始</button>
     </section>
 
-    <section id="inn-area" class="inn-area hidden">
-      <h3>🛏 宿屋</h3>
-      <p><strong id="inn-area-name">-</strong> <span class="muted small">で休めます</span></p>
-      <button id="btn-rest" class="btn btn-primary">休む(HP全回復)</button>
-      <p id="inn-msg" class="muted small"></p>
-    </section>
-
-    <section id="shop-area" class="shop-area hidden">
-      <h3>🛒 道具屋 <span id="shop-area-name" class="muted small">-</span></h3>
-      <div class="shop-cols">
-        <div class="shop-col"><h4>買う</h4><ul id="shop-buy-list" class="shop-list"></ul></div>
-        <div class="shop-col"><h4>売る</h4><ul id="shop-sell-list" class="shop-list"></ul></div>
-      </div>
-      <p id="shop-msg" class="muted small"></p>
-    </section>
-
     <p id="geo-error" class="error-text"></p>
+
+    <!-- 凡例 -->
+    <div class="poi-legend">
+      <span class="lg-item">🛏 宿屋</span>
+      <span class="lg-item">🛒 道具屋</span>
+      <span class="muted small">アイコンをタップで利用</span>
+    </div>
 
     <!-- 3. 地図(大きく) + 現在地に戻るボタン -->
     <div class="map-wrap">
@@ -224,7 +230,7 @@
   <script src="./js/battle.js?v=3"></script>
   <script src="./js/storage.js?v=4"></script>
   <script src="./js/map-key.js?v=3"></script>
-  <script src="./js/map.js?v=4"></script>
-  <script src="./js/app.js?v=10"></script>
+  <script src="./js/map.js?v=5"></script>
+  <script src="./js/app.js?v=11"></script>
 </body>
 </html>
