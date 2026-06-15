@@ -671,12 +671,14 @@ function _poiInRange(kind, id) {
 }
 
 // ポップアップ表示時にボタンの活性/非活性とヒントを更新
-function onPoiPopupOpen(kind, id) {
+function onPoiPopupOpen(kind, id, popupEl) {
+  const root = popupEl || document.querySelector(".leaflet-popup");
+  if (!root) return;
   const r = _poiInRange(kind, id);
-  const btn = document.querySelector(".leaflet-popup-content .poi-btn");
-  const hint = document.querySelector(".leaflet-popup-content .poi-hint");
+  const btn = root.querySelector(".poi-btn");
+  const hint = root.querySelector(".poi-hint");
   if (btn) btn.classList.toggle("poi-btn-disabled", !r.ok);
-  if (hint) hint.textContent = r.ok ? "" : ("範囲外: あと約" + (isFinite(r.dist) ? Math.round(r.dist) : "?") + "m");
+  if (hint) hint.textContent = r.ok ? "" : ("範囲外(あと約" + (isFinite(r.dist) ? Math.round(r.dist) : "?") + "m)");
 }
 
 // ポップアップ内ヒントを目立たせて表示(非活性ボタンのタップ時など)
@@ -690,7 +692,7 @@ function showPoiHint(msg) {
 function onInnEnter(innId) {
   const r = _poiInRange("inn", innId);
   if (!r.obj) return;
-  if (!r.ok) { showPoiHint("近づいてください(あと約" + (isFinite(r.dist) ? Math.round(r.dist) : "?") + "m)"); return; }
+  if (!r.ok) { showPoiHint("範囲外(あと約" + (isFinite(r.dist) ? Math.round(r.dist) : "?") + "m)"); return; }
   const inn = r.obj;
   API.innRest(inn.inn_id).then((r) => {
     if (App.player) { App.player.hp = r.hp; App.player.gold = r.gold; App.player.poisoned = false; App.player.downedUntil = null; }
@@ -704,7 +706,7 @@ function onInnEnter(innId) {
 function onShopEnter(shopId) {
   const r = _poiInRange("shop", shopId);
   if (!r.obj) return;
-  if (!r.ok) { showPoiHint("近づいてください(あと約" + (isFinite(r.dist) ? Math.round(r.dist) : "?") + "m)"); return; }
+  if (!r.ok) { showPoiHint("範囲外(あと約" + (isFinite(r.dist) ? Math.round(r.dist) : "?") + "m)"); return; }
   const shop = r.obj;
   App.currentShop = shop;
   closePoiPopups();

@@ -162,7 +162,7 @@ function setPois(inns, shops) {
       "<button class=\"poi-btn\" onclick=\"onInnEnter('" + n.inn_id + "')\">休む</button>" +
       '<div class="poi-hint"></div></div>';
     var mi = L.marker([n.latitude, n.longitude], { icon: _poiIcon("🛏", "#16a34a") }).bindPopup(html);
-    mi.on("popupopen", function () { if (typeof onPoiPopupOpen === "function") onPoiPopupOpen("inn", n.inn_id); });
+    mi.on("popupopen", function (e) { if (typeof onPoiPopupOpen === "function") onPoiPopupOpen("inn", n.inn_id, e.popup.getElement()); });
     mi.addTo(_poiLayer);
   });
   (shops || []).forEach(function (sh) {
@@ -171,7 +171,7 @@ function setPois(inns, shops) {
       "<button class=\"poi-btn\" onclick=\"onShopEnter('" + sh.shop_id + "')\">入店</button>" +
       '<div class="poi-hint"></div></div>';
     var ms = L.marker([sh.latitude, sh.longitude], { icon: _poiIcon("🛒", "#2563eb") }).bindPopup(html);
-    ms.on("popupopen", function () { if (typeof onPoiPopupOpen === "function") onPoiPopupOpen("shop", sh.shop_id); });
+    ms.on("popupopen", function (e) { if (typeof onPoiPopupOpen === "function") onPoiPopupOpen("shop", sh.shop_id, e.popup.getElement()); });
     ms.addTo(_poiLayer);
   });
   _poiLayer.addTo(_map);
