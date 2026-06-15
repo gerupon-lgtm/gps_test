@@ -12,6 +12,7 @@ let _selfDot = null;
 let _accCircle = null;
 let _mapInited = false;
 let _lastLL = null;
+let _userMoved = false; // ユーザーが地図を動かしたら自動追従を止める
 
 let _tileLayer = null;       // 現在のタイルレイヤー
 let _usingFallback = false;  // OSMフォールバック済みフラグ
@@ -73,6 +74,7 @@ function initMap() {
   _tileLayer = key ? maptilerLayer(key) : osmLayer();
   attachFallback(_tileLayer);
   _tileLayer.addTo(_map);
+  _map.on("dragstart", function () { _userMoved = true; });
   _mapInited = true;
 }
 
@@ -119,12 +121,15 @@ function updateMapPosition(lat, lng, accuracy) {
     }
   }
 
-  const z = _map.getZoom();
-  _map.setView(ll, z < CONFIG.MAP_DEFAULT_ZOOM - 2 ? CONFIG.MAP_DEFAULT_ZOOM : z);
+  if (!_userMoved) {
+    const z = _map.getZoom();
+    _map.setView(ll, z < CONFIG.MAP_DEFAULT_ZOOM - 2 ? CONFIG.MAP_DEFAULT_ZOOM : z);
+  }
 }
 
 function recenterMap() {
   if (!_map || !_lastLL) return false;
+  _userMoved = false; // 「現在地」を押したら追従を再開
   _map.setView(_lastLL, CONFIG.MAP_DEFAULT_ZOOM);
   return true;
 }

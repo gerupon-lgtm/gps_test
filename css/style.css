@@ -519,17 +519,18 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 .map-wrap { position: relative; }
 .status-hud {
   position: absolute; top: 8px; right: 8px; z-index: 500;
-  background: rgba(15,23,42,0.86); color: #fff;
-  border: 2px solid #fff; border-radius: 8px;
+  background: rgba(15,23,42,0.45); color: #fff;
+  border: 2px solid rgba(255,255,255,0.85); border-radius: 8px;
   padding: 5px 8px; font-size: 0.72rem; min-width: 124px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.45); pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  pointer-events: auto; cursor: pointer;
   font-variant-numeric: tabular-nums;
 }
 .status-hud.hidden { display: none; }
 .status-hud .hud-row { display: flex; align-items: center; gap: 5px; line-height: 1.5; }
 .status-hud .hud-name { font-weight: bold; font-size: 0.8rem; margin-bottom: 2px; }
 .status-hud .hud-lv { color: #fcd34d; }
-.status-hud .hud-poison { color: #c084fc; font-weight: bold; }
+.status-hud .hud-poison { background: #7c3aed; color: #fff; padding: 0 5px; border-radius: 4px; font-size: 0.66rem; font-weight: bold; border: 1px solid rgba(255,255,255,0.7); }
 .status-hud .hud-label { width: 16px; color: #cbd5e1; flex: none; }
 .status-hud .hud-bar { flex: 1; height: 8px; background: #334155; border-radius: 4px; overflow: hidden; }
 .status-hud .hud-bar-fill { display: block; height: 100%; background: #22c55e; }
@@ -541,3 +542,20 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 .poi-legend .lg-pin.inn { border-color: #16a34a; }
 .poi-legend .lg-pin.shop { border-color: #2563eb; }
 .poi-legend .lg-item { display: inline-flex; align-items: center; }
+
+
+/* ===== DQ風 コマンドメニュー ===== */
+.menu-overlay { position: fixed; inset: 0; z-index: 1150; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; padding: 1rem; }
+.menu-overlay.hidden { display: none; }
+.dq-window { background: #0a1230; color: #fff; border: 3px solid #fff; border-radius: 6px; padding: 0.7rem 0.9rem; min-width: 240px; max-width: 92vw; max-height: 80vh; overflow-y: auto; box-shadow: 0 4px 22px rgba(0,0,0,0.55); }
+.dq-title { font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.4); padding-bottom: 4px; margin-bottom: 6px; }
+.dq-list { list-style: none; margin: 0 0 4px; padding: 0; }
+.dq-list li { padding: 6px 8px; border-radius: 4px; cursor: pointer; }
+.dq-list li::before { content: "\25B8 "; color: #fcd34d; }
+.dq-list li:hover { background: rgba(255,255,255,0.15); }
+.dq-list li.dq-dim, .dq-list li.dq-empty { color: #94a3b8; cursor: default; }
+.dq-list li.dq-dim::before, .dq-list li.dq-empty::before { content: ""; }
+.dq-qty { color: #cbd5e1; font-size: 0.85em; }
+.dq-eff { color: #86efac; font-size: 0.85em; }
+.dq-stats div { padding: 2px 0; }
+.dq-msg { margin: 6px 0 0; color: #fcd34d; min-height: 1.2em; font-size: 0.85rem; }

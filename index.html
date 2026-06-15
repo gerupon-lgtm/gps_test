@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <title>GPS連動ブラウザゲーム 検証版</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
-  <link rel="stylesheet" href="./css/style.css?v=11" />
+  <link rel="stylesheet" href="./css/style.css?v=12" />
 </head>
 <body>
   <header class="app-header">
@@ -51,6 +51,14 @@
 
   <!-- ===== トースト ===== -->
   <div id="toast" class="toast hidden"></div>
+
+  <!-- ===== DQ風 コマンドメニュー(HUDタップで開く) ===== -->
+  <div id="menu-overlay" class="menu-overlay hidden">
+    <div class="dq-window">
+      <div id="menu-content"></div>
+      <p id="menu-msg" class="dq-msg"></p>
+    </div>
+  </div>
 
   <!-- ===== 道具屋モーダル ===== -->
   <div id="shop-modal" class="shop-modal hidden">
@@ -230,7 +238,7 @@
   <script src="./js/battle.js?v=3"></script>
   <script src="./js/storage.js?v=4"></script>
   <script src="./js/map-key.js?v=3"></script>
-  <script src="./js/map.js?v=6"></script>
-  <script src="./js/app.js?v=14"></script>
+  <script src="./js/map.js?v=7"></script>
+  <script src="./js/app.js?v=15"></script>
 </body>
 </html>

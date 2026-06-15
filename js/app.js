@@ -86,6 +86,9 @@ function bindEvents() {
   $("shop-buy-list").addEventListener("click", onShopBuyClick);
   $("shop-sell-list").addEventListener("click", onShopSellClick);
   $("shop-close").addEventListener("click", closeShopModal);
+  $("status-hud").addEventListener("click", openMenu);
+  $("menu-content").addEventListener("click", onMenuClick);
+  $("menu-overlay").addEventListener("click", function (e) { if (e.target.id === "menu-overlay") closeMenu(); });
   $("btn-recenter").addEventListener("click", () => {
     if (!recenterMap()) {
       $("geo-error").textContent = "現在地がまだ取得できていません";
@@ -737,6 +740,81 @@ function updateHpDisplay() {
       '<div class="hud-row"><span class="hud-label">HP</span><span class="hud-bar"><span class="hud-bar-fill" style="width:' + pct + '%;background:' + color + '"></span></span><span class="hud-val">' + p.hp + '/' + p.maxHp + '</span></div>' +
       '<div class="hud-row"><span class="hud-label">G</span><span class="hud-gold">' + p.gold + '</span></div>';
     hud.classList.remove("hidden");
+  }
+}
+
+// ---- DQ風 コマンドメニュー(HUDタップ) ----
+function openMenu() {
+  if (!App.player) return;
+  show("menu-overlay");
+  $("menu-msg").textContent = "";
+  renderMenuRoot();
+}
+function closeMenu() { hide("menu-overlay"); }
+
+function renderMenuRoot() {
+  $("menu-content").innerHTML =
+    '<div class="dq-title">コマンド</div>' +
+    '<ul class="dq-list">' +
+      '<li data-cmd="item">どうぐ</li>' +
+      '<li data-cmd="status">つよさ</li>' +
+      '<li data-cmd="close">とじる</li>' +
+    '</ul>';
+}
+
+async function renderItemMenu() {
+  let inv = [];
+  try { inv = await API.inventory(); } catch (e) { inv = []; }
+  let rows;
+  if (!inv || !inv.length) {
+    rows = '<li class="dq-empty">なにも もっていない</li>';
+  } else {
+    rows = inv.map(function (it) {
+      const usable = it.healAmount > 0 || it.curePoison;
+      const eff = it.healAmount > 0 ? ("HP+" + it.healAmount) : (it.curePoison ? "毒消し" : "");
+      const attr = usable ? ' data-use="' + it.itemId + '"' : ' class="dq-dim"';
+      return '<li' + attr + '>' + _esc(it.name) + ' <span class="dq-qty">x' + it.qty + '</span>' +
+        (eff ? ' <span class="dq-eff">' + eff + '</span>' : '') + '</li>';
+    }).join("");
+  }
+  $("menu-content").innerHTML =
+    '<div class="dq-title">どうぐ</div><ul class="dq-list">' + rows + '</ul>' +
+    '<ul class="dq-list"><li data-cmd="back">もどる</li></ul>';
+}
+
+function renderStatus() {
+  const p = App.player || {};
+  $("menu-content").innerHTML =
+    '<div class="dq-title">つよさ</div>' +
+    '<div class="dq-stats">' +
+      '<div>なまえ: ' + _esc(p.name || "") + '</div>' +
+      '<div>レベル: ' + (p.level || 1) + '</div>' +
+      '<div>HP: ' + p.hp + " / " + p.maxHp + '</div>' +
+      '<div>こうげき: ' + p.attack + '</div>' +
+      '<div>しゅび: ' + p.defense + '</div>' +
+      '<div>けいけん: ' + p.exp + (p.nextExp ? " / " + p.nextExp : "") + '</div>' +
+      '<div>ゴールド: ' + p.gold + '</div>' +
+      '<div>じょうたい: ' + (p.poisoned ? "どく" : "なし") + '</div>' +
+    '</div>' +
+    '<ul class="dq-list"><li data-cmd="back">もどる</li></ul>';
+}
+
+async function onMenuClick(e) {
+  const li = e.target.closest("li");
+  if (!li) return;
+  const cmd = li.dataset.cmd;
+  if (cmd === "close") { closeMenu(); return; }
+  if (cmd === "back") { $("menu-msg").textContent = ""; renderMenuRoot(); return; }
+  if (cmd === "item") { renderItemMenu(); return; }
+  if (cmd === "status") { renderStatus(); return; }
+  if (li.dataset.use) {
+    try {
+      const r = await API.useItem(li.dataset.use);
+      if (App.player) { App.player.hp = r.hp; if (typeof r.poisoned !== "undefined") App.player.poisoned = r.poisoned; }
+      updateHpDisplay();
+      $("menu-msg").textContent = r.message || (r.itemName + "をつかった");
+    } catch (err) { $("menu-msg").textContent = err.message; }
+    renderItemMenu();
   }
 }
 
