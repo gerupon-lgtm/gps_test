@@ -2,8 +2,10 @@ const path = require("path");
 const crypto = require("crypto");
 const Fastify = require("fastify");
 const cookie = require("@fastify/cookie");
+const iconv = require("iconv-lite");
 const { z } = require("zod");
 const { prisma } = require("./db");
+const adminCsv = require("./adminCsv");
 
 const PORT = Number(process.env.PORT || 3010);
 const ADMIN_USER = process.env.ADMIN_USER || "admin";
@@ -11,8 +13,9 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 const COOKIE_SECRET = process.env.ADMIN_COOKIE_SECRET || process.env.SESSION_SECRET || "dev-admin-secret";
 const SESSION_COOKIE = "admin_sid";
 const sessions = new Map();
+const importPreviews = new Map();
 
-const app = Fastify({ logger: true });
+const app = Fastify({ logger: true, bodyLimit: 5 * 1024 * 1024 });
 app.register(cookie, { secret: COOKIE_SECRET });
 app.register(require("@fastify/static"), {
   root: path.join(__dirname, "..", "public"),
@@ -68,6 +71,8 @@ const MASTER_CONFIG = {
     model: "spotMaster",
     idField: "spotId",
     labelField: "name",
+    defaults: { active: true },
+    idPrefix: "spot",
     fields: {
       spotId: "string",
       name: "string",
@@ -88,6 +93,8 @@ const MASTER_CONFIG = {
     model: "enemyMaster",
     idField: "enemyId",
     labelField: "name",
+    defaults: { active: true },
+    idPrefix: "enemy",
     fields: {
       enemyId: "string",
       name: "string",
@@ -107,6 +114,8 @@ const MASTER_CONFIG = {
     model: "itemMaster",
     idField: "itemId",
     labelField: "name",
+    defaults: { active: true },
+    idPrefix: "item",
     fields: {
       itemId: "string",
       name: "string",
@@ -125,18 +134,23 @@ const MASTER_CONFIG = {
     model: "innMaster",
     idField: "innId",
     labelField: "name",
+    defaults: { active: true },
+    idPrefix: "inn",
     fields: { innId: "string", name: "string", lat: "number", lng: "number", radiusM: "int", active: "boolean" },
   },
   shops: {
     model: "shopMaster",
     idField: "shopId",
     labelField: "name",
+    defaults: { active: true },
+    idPrefix: "shop",
     fields: { shopId: "string", name: "string", lat: "number", lng: "number", radiusM: "int", active: "boolean" },
   },
   postalAreas: {
     model: "postalAreaMaster",
     idField: "areaKey",
     labelField: "regionName",
+    defaults: { active: true },
     fields: {
       areaKey: "string",
       postalCode: "nullableString",
@@ -175,6 +189,184 @@ function buildMasterData(config, body, allowId) {
     data[field] = normalizeMasterValue(type, body[field]);
   }
   return data;
+}
+
+function csvEscape(value) {
+  if (value === null || value === undefined) return "";
+  const s = String(value);
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function toCsv(rows, headers) {
+  return [
+    headers.join(","),
+    ...rows.map((row) => headers.map((h) => csvEscape(row[h])).join(",")),
+  ].join("\n") + "\n";
+}
+
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let inQuotes = false;
+  const src = String(text || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (inQuotes) {
+      if (ch === '"' && src[i + 1] === '"') {
+        cell += '"';
+        i++;
+      } else if (ch === '"') {
+        inQuotes = false;
+      } else {
+        cell += ch;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ",") {
+      row.push(cell);
+      cell = "";
+    } else if (ch === "\n") {
+      row.push(cell);
+      if (row.some((v) => String(v).trim() !== "")) rows.push(row);
+      row = [];
+      cell = "";
+    } else {
+      cell += ch;
+    }
+  }
+  row.push(cell);
+  if (row.some((v) => String(v).trim() !== "")) rows.push(row);
+  if (rows.length === 0) return [];
+  const headers = rows[0].map((h) => String(h).trim());
+  return rows.slice(1).map((cols) => {
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = cols[i] == null ? "" : String(cols[i]).trim(); });
+    return obj;
+  });
+}
+
+function rowsToCsvObjects(rows, config) {
+  const headers = Object.keys(config.fields);
+  return {
+    headers,
+    rows: rows.map((row) => {
+      const out = {};
+      headers.forEach((h) => { out[h] = row[h]; });
+      return out;
+    }),
+  };
+}
+
+function diffMasterRows(config, rows, existingRows) {
+  const existingMap = new Map(existingRows.map((row) => [String(row[config.idField]), row]));
+  const seen = new Set();
+  const changes = [];
+  const errors = [];
+  for (let i = 0; i < rows.length; i++) {
+    const raw = rows[i];
+    const rowNo = i + 2;
+    const id = String(raw[config.idField] || "").trim();
+    if (!id) {
+      errors.push({ row: rowNo, error: "IDが空です" });
+      continue;
+    }
+    if (seen.has(id)) {
+      errors.push({ row: rowNo, id, error: "IDが重複しています" });
+      continue;
+    }
+    seen.add(id);
+    let data;
+    try {
+      data = buildMasterData(config, raw, true);
+    } catch (e) {
+      errors.push({ row: rowNo, id, error: "数値項目が不正です" });
+      continue;
+    }
+    const before = existingMap.get(id) || null;
+    const type = before ? "update" : "insert";
+    if (!before) {
+      for (const [field, value] of Object.entries(config.defaults || {})) {
+        if (!Object.prototype.hasOwnProperty.call(data, field)) data[field] = value;
+      }
+      const missing = Object.entries(config.fields)
+        .filter(([field, fieldType]) =>
+          fieldType !== "nullableString" &&
+          !Object.prototype.hasOwnProperty.call(config.defaults || {}, field) &&
+          !Object.prototype.hasOwnProperty.call(data, field)
+        )
+        .map(([field]) => field);
+      if (missing.length > 0) {
+        errors.push({ row: rowNo, id, error: "新規追加に必要な列が不足しています: " + missing.join(", ") });
+        continue;
+      }
+    }
+    const changedFields = [];
+    if (before) {
+      const fieldsToCompare = Object.keys(data).filter((field) => field !== config.idField);
+      for (const field of fieldsToCompare) {
+        const a = before[field] == null ? null : before[field];
+        const b = data[field] == null ? null : data[field];
+        if (String(a) !== String(b)) changedFields.push(field);
+      }
+    } else {
+      changedFields.push(...Object.keys(config.fields));
+    }
+    changes.push({ row: rowNo, id, type, changedFields, data });
+  }
+  const missingIds = Array.from(existingMap.keys()).filter((id) => !seen.has(id));
+  return { changes, errors, missingIds };
+}
+
+function normalizeCsvEncoding(value) {
+  const v = String(value || "sjis").toLowerCase();
+  return v === "utf8" || v === "utf-8" ? "utf8" : "sjis";
+}
+
+function decodeCsvBody(body) {
+  const encoding = normalizeCsvEncoding(body && body.encoding);
+  if (body && body.csvBase64) {
+    const buf = Buffer.from(String(body.csvBase64), "base64");
+    return encoding === "sjis" ? iconv.decode(buf, "Shift_JIS") : buf.toString("utf8");
+  }
+  return String((body && body.csvText) || "");
+}
+
+function encodeCsvBody(text, encoding) {
+  const normalized = normalizeCsvEncoding(encoding);
+  return normalized === "sjis" ? iconv.encode(text, "Shift_JIS") : Buffer.from(text, "utf8");
+}
+
+function masterRowToFacility(type, row, idField) {
+  return {
+    type,
+    id: String(row[idField]),
+    name: row.name || String(row[idField]),
+    lat: row.lat,
+    lng: row.lng,
+  };
+}
+
+async function loadFacilityRows(tx) {
+  const [spots, inns, shops] = await Promise.all([
+    tx.spotMaster.findMany({ select: { spotId: true, name: true, lat: true, lng: true } }),
+    tx.innMaster.findMany({ select: { innId: true, name: true, lat: true, lng: true } }),
+    tx.shopMaster.findMany({ select: { shopId: true, name: true, lat: true, lng: true } }),
+  ]);
+  return [
+    ...spots.map((row) => masterRowToFacility("spots", row, "spotId")),
+    ...inns.map((row) => masterRowToFacility("inns", row, "innId")),
+    ...shops.map((row) => masterRowToFacility("shops", row, "shopId")),
+  ];
+}
+
+function previewFacilities(type, config, changes) {
+  if (!["spots", "inns", "shops"].includes(type)) return [];
+  return changes
+    .filter((change) => change.type === "insert" || change.changedFields.includes("lat") || change.changedFields.includes("lng"))
+    .map((change) => masterRowToFacility(type, change.data, config.idField));
 }
 
 app.get("/api/health", async () => ({ ok: true, time: new Date().toISOString() }));
@@ -377,6 +569,105 @@ app.put("/api/admin/masters/:type/:id", requireAdmin(async (req, reply) => {
   });
   await audit(req.adminName, "update_master", req.params.type, req.params.id, before, after);
   return { ok: true, data: after };
+}));
+
+app.get("/api/admin/masters/:type/export.csv", requireAdmin(async (req, reply) => {
+  const config = MASTER_CONFIG[req.params.type];
+  if (!config) return reply.code(404).send({ error: "マスタ種別が見つかりません" });
+  const rows = await prisma[config.model].findMany({ orderBy: { [config.idField]: "asc" } });
+  const csv = adminCsv.rowsToCsvObjects(rows, config);
+  const encoding = normalizeCsvEncoding(req.query && req.query.encoding);
+  const body = encodeCsvBody(adminCsv.toCsv(csv.rows, csv.headers), encoding);
+  reply
+    .header("Content-Type", `text/csv; charset=${encoding === "sjis" ? "Shift_JIS" : "utf-8"}`)
+    .header("Content-Disposition", `attachment; filename="${req.params.type}.csv"`);
+  return body;
+}));
+
+app.post("/api/admin/masters/:type/import/preview", requireAdmin(async (req, reply) => {
+  const config = MASTER_CONFIG[req.params.type];
+  if (!config) return reply.code(404).send({ error: "マスタ種別が見つかりません" });
+  const schema = z.object({
+    csvText: z.string().optional(),
+    csvBase64: z.string().optional(),
+    encoding: z.string().optional(),
+    proximityThresholdM: z.number().min(1).max(1000).optional(),
+  }).refine((v) => Boolean(v.csvText || v.csvBase64));
+  const p = schema.safeParse(req.body);
+  if (!p.success) return reply.code(400).send({ error: "CSVが空です" });
+  const rows = adminCsv.parseCsv(decodeCsvBody(p.data));
+  const existing = await prisma[config.model].findMany();
+  const preview = adminCsv.diffMasterRows(config, rows, existing);
+  const proximityWarnings = ["spots", "inns", "shops"].includes(req.params.type)
+    ? adminCsv.findProximityWarnings({
+        thresholdM: p.data.proximityThresholdM || 10,
+        existingFacilities: await loadFacilityRows(prisma),
+        importedFacilities: previewFacilities(req.params.type, config, preview.changes),
+      })
+    : [];
+  const previewId = crypto.randomBytes(16).toString("hex");
+  importPreviews.set(previewId, {
+    adminName: req.adminName,
+    type: req.params.type,
+    createdAt: Date.now(),
+    changes: preview.changes,
+  });
+  return {
+    previewId,
+    insertCount: preview.changes.filter((c) => c.type === "insert").length,
+    updateCount: preview.changes.filter((c) => c.type === "update" && c.changedFields.length > 0).length,
+    noChangeCount: preview.changes.filter((c) => c.type === "update" && c.changedFields.length === 0).length,
+    missingCount: preview.missingIds.length,
+    errors: preview.errors,
+    warnings: proximityWarnings.slice(0, 100).map((warning) => ({
+      type: "proximity",
+      message: `${warning.a.name} (${warning.a.type}:${warning.a.id}) と ${warning.b.name} (${warning.b.type}:${warning.b.id}) が約${warning.distanceM}mです`,
+      distanceM: warning.distanceM,
+      a: warning.a,
+      b: warning.b,
+    })),
+    missingIds: preview.missingIds.slice(0, 100),
+    changes: preview.changes.slice(0, 100).map((c) => ({
+      row: c.row,
+      id: c.id,
+      type: c.type,
+      changedFields: c.changedFields,
+    })),
+  };
+}));
+
+app.post("/api/admin/masters/:type/import/apply", requireAdmin(async (req, reply) => {
+  const config = MASTER_CONFIG[req.params.type];
+  if (!config) return reply.code(404).send({ error: "マスタ種別が見つかりません" });
+  const schema = z.object({ previewId: z.string() });
+  const p = schema.safeParse(req.body);
+  if (!p.success) return reply.code(400).send({ error: "入力が不正です" });
+  const preview = importPreviews.get(p.data.previewId);
+  if (!preview || preview.type !== req.params.type || preview.adminName !== req.adminName) {
+    return reply.code(404).send({ error: "プレビューが見つかりません。再度プレビューしてください" });
+  }
+  if (Date.now() - preview.createdAt > 30 * 60 * 1000) {
+    importPreviews.delete(p.data.previewId);
+    return reply.code(410).send({ error: "プレビューの期限が切れました。再度プレビューしてください" });
+  }
+  const targets = preview.changes.filter((c) => c.type === "insert" || c.changedFields.length > 0);
+  const beforeRows = await prisma[config.model].findMany({
+    where: { [config.idField]: { in: targets.map((c) => c.id) } },
+  });
+  await prisma.$transaction(async (tx) => {
+    for (const change of targets) {
+      await tx[config.model].upsert({
+        where: { [config.idField]: change.id },
+        update: buildMasterData(config, change.data, false),
+        create: change.data,
+      });
+    }
+  });
+  importPreviews.delete(p.data.previewId);
+  await audit(req.adminName, "import_master_csv", req.params.type, null, beforeRows, {
+    applied: targets.map((c) => ({ id: c.id, type: c.type, changedFields: c.changedFields })),
+  });
+  return { ok: true, applied: targets.length };
 }));
 
 app.listen({ port: PORT, host: "127.0.0.1" })

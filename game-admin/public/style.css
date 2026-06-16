@@ -47,6 +47,9 @@ button:hover { filter: brightness(1.08); }
 .master-form { display: grid; grid-template-columns: repeat(2, minmax(180px, 1fr)); gap: 8px 12px; }
 .master-form .check-row { display: flex; align-items: center; gap: 8px; }
 .master-form .check-row input { width: auto; margin: 0; }
+.import-preview { margin-top: 16px; padding-top: 12px; border-top: 1px solid #334155; }
+.danger { color: #fecaca; background: #7f1d1d !important; }
+.warning { color: #fef3c7; background: #78350f !important; }
 @media (max-width: 760px) {
   .grid { grid-template-columns: 1fr; }
   .spot-edit { grid-template-columns: 1fr; }

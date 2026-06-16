@@ -53,13 +53,35 @@
               <option value="postalAreas">地域</option>
             </select>
           </label>
+          <label>CSV文字コード
+            <select id="csv-encoding">
+              <option value="sjis" selected>SJIS</option>
+              <option value="utf8">UTF-8</option>
+            </select>
+          </label>
+          <label>近接警告(m)
+            <input id="proximity-threshold" type="number" min="1" max="1000" value="10">
+          </label>
           <button id="btn-master-refresh">再読み込み</button>
+          <button id="btn-master-export">CSV出力</button>
+          <label>CSV取り込み
+            <input id="master-import-file" type="file" accept=".csv,text/csv">
+          </label>
+          <button id="btn-master-preview">取り込みプレビュー</button>
           <ul id="master-list" class="list"></ul>
         </section>
 
         <section class="card">
           <h2>マスタ詳細</h2>
           <div id="master-detail" class="muted">マスタを選択してください。</div>
+          <div id="import-preview" class="import-preview hidden">
+            <h3>CSV取り込みプレビュー</h3>
+            <p id="import-summary"></p>
+            <ul id="import-errors" class="list compact"></ul>
+            <ul id="import-warnings" class="list compact"></ul>
+            <ul id="import-changes" class="list compact"></ul>
+            <button id="btn-master-apply">確定反映</button>
+          </div>
         </section>
       </div>
     </section>

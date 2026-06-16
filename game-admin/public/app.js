@@ -2,6 +2,7 @@ let selectedPlayerId = null;
 let selectedPlayer = null;
 let spots = [];
 let selectedMaster = null;
+let currentImportPreview = null;
 const MASTER_PRIMARY_IDS = {
   spots: "spotId",
   enemies: "enemyId",
@@ -81,10 +82,72 @@ async function loadSpots() {
 
 async function loadMasters() {
   const type = $("master-type").value;
+  currentImportPreview = null;
+  $("import-preview").classList.add("hidden");
   const rows = await api("/api/admin/masters/" + encodeURIComponent(type));
   $("master-list").innerHTML = rows.map((r) =>
     `<li data-master="${escAttr(r.id)}"><div class="player-row"><span>${esc(r.label)} <span class="muted">(${esc(r.id)})</span></span><span class="badge ${r.active ? "enabled" : "disabled"}">${r.active ? "有効" : "非表示"}</span></div></li>`
   ).join("");
+}
+
+function exportMasterCsv() {
+  const type = $("master-type").value;
+  const encoding = $("csv-encoding").value;
+  window.location.href = "/api/admin/masters/" + encodeURIComponent(type) + "/export.csv?encoding=" + encodeURIComponent(encoding);
+}
+
+async function previewMasterImport() {
+  const file = $("master-import-file").files[0];
+  if (!file) {
+    $("master-detail").textContent = "CSVファイルを選択してください。";
+    return;
+  }
+  const csvBase64 = await fileToBase64(file);
+  const type = $("master-type").value;
+  const proximityThresholdM = Number($("proximity-threshold").value || 10);
+  const preview = await api("/api/admin/masters/" + encodeURIComponent(type) + "/import/preview", "POST", {
+    csvBase64,
+    encoding: $("csv-encoding").value,
+    proximityThresholdM,
+  });
+  currentImportPreview = preview;
+  renderImportPreview(preview);
+}
+
+function renderImportPreview(preview) {
+  $("import-preview").classList.remove("hidden");
+  $("import-summary").textContent =
+    `追加 ${preview.insertCount} / 更新 ${preview.updateCount} / 変更なし ${preview.noChangeCount} / CSV未掲載 ${preview.missingCount} / エラー ${preview.errors.length}`;
+  $("import-errors").innerHTML = preview.errors.length
+    ? preview.errors.map((e) => `<li class="danger">行${e.row || "-"} ${esc(e.id || "")}: ${esc(e.error)}</li>`).join("")
+    : "<li>エラーなし</li>";
+  $("import-warnings").innerHTML = preview.warnings && preview.warnings.length
+    ? preview.warnings.map((w) => `<li class="warning">${esc(w.message)}</li>`).join("")
+    : "<li>警告なし</li>";
+  $("import-changes").innerHTML = preview.changes.length
+    ? preview.changes.map((c) => `<li>${esc(c.type)}: ${esc(c.id)} / ${esc(c.changedFields.join(", ") || "変更なし")}</li>`).join("")
+    : "<li>変更なし</li>";
+  $("btn-master-apply").disabled = preview.errors.length > 0;
+}
+
+async function fileToBase64(file) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+async function applyMasterImport() {
+  if (!currentImportPreview) return;
+  const type = $("master-type").value;
+  const r = await api("/api/admin/masters/" + encodeURIComponent(type) + "/import/apply", "POST", { previewId: currentImportPreview.previewId });
+  $("import-summary").textContent = "反映しました: " + r.applied + "件";
+  currentImportPreview = null;
+  await loadMasters();
+  $("master-detail").textContent = "CSVを反映しました: " + r.applied + "件";
 }
 
 async function loadMasterDetail(type, id) {
@@ -241,6 +304,13 @@ $("tab-players").addEventListener("click", () => showTab("players"));
 $("tab-masters").addEventListener("click", () => showTab("masters"));
 $("master-type").addEventListener("change", loadMasters);
 $("btn-master-refresh").addEventListener("click", loadMasters);
+$("btn-master-export").addEventListener("click", exportMasterCsv);
+$("btn-master-preview").addEventListener("click", () => previewMasterImport().catch((e) => {
+  $("master-detail").textContent = e.message;
+}));
+$("btn-master-apply").addEventListener("click", () => applyMasterImport().catch((e) => {
+  $("master-detail").textContent = e.message;
+}));
 $("player-list").addEventListener("click", (e) => {
   const li = e.target.closest("[data-player]");
   if (li) loadPlayerDetail(li.dataset.player);
