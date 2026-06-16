@@ -384,6 +384,11 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
   font-size: 1rem;
   cursor: pointer;
 }
+.explore-result-card { gap: 0.55rem; text-align: center; }
+.explore-result-main { margin: 0; color: var(--muted); font-size: 0.9rem; }
+.explore-result-spot { margin: 0; color: #fcd34d; font-size: 1.15rem; font-weight: 800; }
+.explore-result-distance { margin: 0 0 0.35rem; }
+.explore-result-distance strong { color: #86efac; font-size: 1.1rem; }
 .spot-list {
   list-style: none;
   margin: 8px 0 0;

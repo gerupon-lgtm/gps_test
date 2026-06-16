@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <title>GPS連動ブラウザゲーム 検証版</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
-  <link rel="stylesheet" href="./css/style.css?v=20" />
+  <link rel="stylesheet" href="./css/style.css?v=21" />
 </head>
 <body>
   <div id="auth-overlay" class="auth-overlay hidden">
@@ -172,6 +172,19 @@
     </div>
   </div>
 
+  <div id="explore-result-modal" class="modal-overlay hidden">
+    <div class="modal-card explore-result-card">
+      <div class="modal-head">
+        <h2>探索結果</h2>
+        <button id="explore-result-close" class="modal-close" aria-label="閉じる">×</button>
+      </div>
+      <p class="explore-result-main">今回の最遠撃破スポット</p>
+      <p id="explore-result-spot" class="explore-result-spot">-</p>
+      <p class="explore-result-distance">スタート地点から <strong id="explore-result-distance">-</strong></p>
+      <button id="explore-result-ok" class="btn btn-primary">OK</button>
+    </div>
+  </div>
+
   <main id="screen-battle" class="screen hidden">
     <h2>戦闘</h2>
     <div class="battle-enemy">
@@ -227,6 +240,6 @@
   <script src="./js/storage.js?v=4"></script>
   <script src="./js/map-key.js?v=3"></script>
   <script src="./js/map.js?v=14"></script>
-  <script src="./js/app.js?v=25"></script>
+  <script src="./js/app.js?v=26"></script>
 </body>
 </html>

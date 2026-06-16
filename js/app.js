@@ -14,6 +14,8 @@ const App = {
   player: null,    // /api/me のプレイヤー状態(HP/gold等)
   waitTimer: null, // 待機(敗北/勝利)カウントダウン用
   downedTimer: null,
+  exploreStartPosition: null,
+  exploreResult: null,
 };
 
 // ---- ユーティリティ ----
@@ -72,6 +74,11 @@ async function init() {
 function bindEvents() {
   $("btn-start").addEventListener("click", onStart);
   $("btn-stop").addEventListener("click", onStop);
+  $("explore-result-close").addEventListener("click", closeExploreResult);
+  $("explore-result-ok").addEventListener("click", closeExploreResult);
+  $("explore-result-modal").addEventListener("click", (e) => {
+    if (e.target.id === "explore-result-modal") closeExploreResult();
+  });
   $("btn-attack").addEventListener("click", onAttack);
   $("btn-use-item").addEventListener("click", onUseItemInBattle);
   $("battle-item-list").addEventListener("click", onBattleItemClick);
@@ -136,6 +143,11 @@ function onStart() {
   refreshMapSize();
   $("geo-error").textContent = "";
   App.watching = true;
+  App.exploreStartPosition = App.lastPosition ? {
+    latitude: App.lastPosition.latitude,
+    longitude: App.lastPosition.longitude,
+  } : null;
+  App.exploreResult = { defeatedCount: 0, farthest: null };
   refreshSpotStates();
   startWatchPosition(onPositionUpdate, onPositionError);
 }
@@ -143,14 +155,48 @@ function onStart() {
 function onStop() {
   stopWatchPosition();
   App.watching = false;
+  if (App.exploreResult && App.exploreResult.defeatedCount > 0) {
+    showExploreResult();
+    return;
+  }
+  clearExploreSession();
   showScreen("top");
 }
 
 function onPositionUpdate(pos) {
   App.lastPosition = pos;
+  if (App.watching && !App.exploreStartPosition) {
+    App.exploreStartPosition = {
+      latitude: pos.latitude,
+      longitude: pos.longitude,
+    };
+  }
   $("geo-error").textContent = "";
   updateExplore(pos);
   reportLocationThrottled(pos); // サーバーへ現在地を報告(一定間隔)
+}
+
+function clearExploreSession() {
+  App.exploreStartPosition = null;
+  App.exploreResult = null;
+}
+
+function showExploreResult() {
+  const farthest = App.exploreResult && App.exploreResult.farthest;
+  if (!farthest) {
+    clearExploreSession();
+    showScreen("top");
+    return;
+  }
+  $("explore-result-spot").textContent = farthest.spotName;
+  $("explore-result-distance").textContent = formatDistance(farthest.distance);
+  show("explore-result-modal");
+}
+
+function closeExploreResult() {
+  hide("explore-result-modal");
+  clearExploreSession();
+  showScreen("top");
 }
 
 function onPositionError(err) {
@@ -576,8 +622,10 @@ function renderBattle() {
 }
 
 function handleWin(win) {
-  const spot = App.currentSpot;
+  const spot = resolveSpot(App.currentSpot);
   if (win && win.victoryUntil && spot) saveVictoryCooldown(spot.spot_id, win.victoryUntil);
+  recordExploreWin(spot);
+  notifyNewTitles(win);
   if (App.player && win) {
     App.player.hp = win.hp; App.player.maxHp = win.maxHp;
     App.player.gold = win.gold; App.player.level = win.level;
@@ -596,6 +644,44 @@ function handleWin(win) {
   }).catch(() => {});
   updateHpDisplay();
   refreshDefeatedSpots();
+}
+
+function resolveSpot(spot) {
+  if (!spot) return null;
+  if (spot.latitude != null && spot.longitude != null) return spot;
+  if (!App.data || !App.data.spots) return spot;
+  return App.data.spots.find((s) => s.spot_id === spot.spot_id) || spot;
+}
+
+function recordExploreWin(spot) {
+  if (!spot || spot.latitude == null || spot.longitude == null) return;
+  if (!App.exploreResult) App.exploreResult = { defeatedCount: 0, farthest: null };
+  App.exploreResult.defeatedCount += 1;
+  if (!App.exploreStartPosition && App.lastPosition) {
+    App.exploreStartPosition = {
+      latitude: App.lastPosition.latitude,
+      longitude: App.lastPosition.longitude,
+    };
+  }
+  if (!App.exploreStartPosition) return;
+  const distance = calculateDistanceMeters(
+    App.exploreStartPosition.latitude,
+    App.exploreStartPosition.longitude,
+    spot.latitude,
+    spot.longitude
+  );
+  if (!App.exploreResult.farthest || distance > App.exploreResult.farthest.distance) {
+    App.exploreResult.farthest = {
+      spotId: spot.spot_id,
+      spotName: spot.spot_name,
+      distance,
+    };
+  }
+}
+
+function notifyNewTitles(win) {
+  if (!win || !win.newTitles || win.newTitles.length === 0) return;
+  showToast("称号獲得: " + win.newTitles.join(" / "));
 }
 
 // 撃破済みスポットをマップに反映

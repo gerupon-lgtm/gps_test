@@ -119,16 +119,16 @@ app.post("/api/auth/logout", async (req, reply) => {
   return { ok: true };
 });
 
-async function generateTitles(player) {
-  const defeated = new Set((player.defeatedSpots || "").split(",").filter(Boolean));
+async function generateTitlesForDefeated(defeatedSpots, db = prisma) {
+  const defeated = new Set((defeatedSpots || "").split(",").filter(Boolean));
   if (defeated.size === 0) return [];
 
   const [spots, areas] = await Promise.all([
-    prisma.spotMaster.findMany({
+    db.spotMaster.findMany({
       where: { active: true },
       select: { spotId: true, areaKey: true },
     }),
-    prisma.postalAreaMaster.findMany({
+    db.postalAreaMaster.findMany({
       select: { areaKey: true, regionName: true },
     }),
   ]);
@@ -156,6 +156,10 @@ async function generateTitles(player) {
   }
   if (uncategorizedCleared >= 5) titles.push("開拓者");
   return titles;
+}
+
+async function generateTitles(player) {
+  return generateTitlesForDefeated(player.defeatedSpots);
 }
 
 app.get("/api/me", requireAuth(async (req) => {
@@ -586,6 +590,7 @@ async function finalizeWin(tx, player, currentHp, spot, enemy) {
   // 撃破済み(再戦)か判定。2回目以降は EXP/ドロップ減・固定報酬なし。
   const defeatedArr = (player.defeatedSpots || "").split(",").filter(Boolean);
   const isRepeat = defeatedArr.includes(spot.spotId);
+  const beforeTitles = await generateTitlesForDefeated(player.defeatedSpots, tx);
   let expGain = randBonus(enemy.expBase);
   const goldGain = randBonus(enemy.goldBase);
   if (isRepeat) expGain = Math.round(expGain * REPEAT_REWARD_FACTOR);
@@ -612,6 +617,9 @@ async function finalizeWin(tx, player, currentHp, spot, enemy) {
   });
   const hp = lv.leveledUp ? lv.maxHp : currentHp; // レベルアップ時のみ全回復
   const newDefeated = isRepeat ? player.defeatedSpots : defeatedArr.concat(spot.spotId).join(",");
+  const afterTitles = await generateTitlesForDefeated(newDefeated, tx);
+  const beforeTitleSet = new Set(beforeTitles);
+  const newTitles = afterTitles.filter((title) => !beforeTitleSet.has(title));
   await tx.player.update({
     where: { id: player.id },
     data: { exp: lv.exp, level: lv.level, maxHp: lv.maxHp, attack: lv.attack, defense: lv.defense, hp, gold: player.gold + goldGain, defeatedSpots: newDefeated },
@@ -619,7 +627,7 @@ async function finalizeWin(tx, player, currentHp, spot, enemy) {
   await tx.battleLog.create({ data: { playerId: player.id, enemyId: enemy.enemyId, spotId: spot.spotId, result: "win" } });
   return {
     expGain, goldGain, leveledUp: lv.leveledUp, level: lv.level, nextExp: lv.level * LEVEL_EXP_FACTOR,
-    gold: player.gold + goldGain, hp, maxHp: lv.maxHp, attack: lv.attack, defense: lv.defense, rewards, victoryUntil, repeat: isRepeat,
+    gold: player.gold + goldGain, hp, maxHp: lv.maxHp, attack: lv.attack, defense: lv.defense, rewards, victoryUntil, repeat: isRepeat, newTitles,
   };
 }
 
