@@ -590,6 +590,10 @@ function handleWin(win) {
   $("battle-reward").textContent = parts.join(" / ");
   show("battle-reward");
   renderItems();
+  API.me().then((me) => {
+    App.player = me;
+    updateHpDisplay();
+  }).catch(() => {});
   updateHpDisplay();
   refreshDefeatedSpots();
 }
@@ -847,6 +851,9 @@ async function renderItemMenu() {
 
 function renderStatus() {
   const p = App.player || {};
+  const titleRows = p.titles && p.titles.length
+    ? p.titles.map((t) => '<div>・' + _esc(t) + '</div>').join("")
+    : '<div>なし</div>';
   $("menu-content").innerHTML =
     '<div class="dq-title">つよさ</div>' +
     '<div class="dq-stats">' +
@@ -858,6 +865,8 @@ function renderStatus() {
       '<div>けいけん: ' + p.exp + (p.nextExp ? " / " + p.nextExp : "") + '</div>' +
       '<div>ゴールド: ' + p.gold + '</div>' +
       '<div>じょうたい: ' + (p.poisoned ? "どく" : "なし") + '</div>' +
+      '<div>しょうごう:</div>' +
+      '<div class="dq-titles">' + titleRows + '</div>' +
     '</div>' +
     '<ul class="dq-list"><li data-cmd="back">もどる</li></ul>';
 }

@@ -21,6 +21,8 @@ async function main() {
   const enemies = read("enemies.csv");
   const items = read("items.csv");
   const spots = read("spots.csv");
+  let postalAreas = [];
+  try { postalAreas = read("postal_areas.csv"); } catch (e) { postalAreas = []; }
 
   for (const e of enemies) {
     const fields = {
@@ -48,16 +50,37 @@ async function main() {
       create: { itemId: i.item_id, ...fields },
     });
   }
+  for (const a of postalAreas) {
+    await prisma.postalAreaMaster.upsert({
+      where: { areaKey: a.area_key },
+      update: {
+        postalCode: a.postal_code || null,
+        muniCd: a.muni_cd || "",
+        areaName: a.area_name || "",
+        regionName: a.region_name || a.area_name || "",
+      },
+      create: {
+        areaKey: a.area_key,
+        postalCode: a.postal_code || null,
+        muniCd: a.muni_cd || "",
+        areaName: a.area_name || "",
+        regionName: a.region_name || a.area_name || "",
+      },
+    });
+  }
+
   for (const s of spots) {
     await prisma.spotMaster.upsert({
       where: { spotId: s.spot_id },
       update: {
         name: s.spot_name, lat: +s.latitude, lng: +s.longitude, radiusM: +s.radius_meters,
+        postalCode: s.postal_code || null, muniCd: s.muni_cd || null, areaName: s.area_name || null, areaKey: s.area_key || null,
         enemyId: s.enemy_id, rewardItemId: s.reward_item_id, penaltyMin: +s.penalty_minutes,
         active: String(s.active).toLowerCase() === "true",
       },
       create: {
         spotId: s.spot_id, name: s.spot_name, lat: +s.latitude, lng: +s.longitude, radiusM: +s.radius_meters,
+        postalCode: s.postal_code || null, muniCd: s.muni_cd || null, areaName: s.area_name || null, areaKey: s.area_key || null,
         enemyId: s.enemy_id, rewardItemId: s.reward_item_id, penaltyMin: +s.penalty_minutes,
         active: String(s.active).toLowerCase() === "true",
       },
@@ -86,7 +109,7 @@ async function main() {
     });
   }
 
-  console.log(`seed done: enemies=${enemies.length} items=${items.length} spots=${spots.length} inns=${inns.length} shops=${shops.length}`);
+  console.log(`seed done: enemies=${enemies.length} items=${items.length} spots=${spots.length} postalAreas=${postalAreas.length} inns=${inns.length} shops=${shops.length}`);
 }
 
 main().then(() => prisma.$disconnect()).catch(async (e) => {

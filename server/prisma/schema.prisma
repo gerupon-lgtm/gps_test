@@ -1,4 +1,4 @@
-// Prisma スキーマ(案A / PostgreSQL)
+// Prisma schema (PostgreSQL)
 generator client {
   provider = "prisma-client-js"
 }
@@ -39,22 +39,24 @@ model Player {
   gold      Int      @default(0)
   updatedAt DateTime @updatedAt
 
-  // 位置情報(「近くのプレイヤー」用。非リアルタイム)
+  // Location and social visibility.
   lastLat       Float?
   lastLng       Float?
-  lastSeenAt    DateTime?   // 位置を最後に報告した時刻。古いものは一覧で除外
-  shareLocation Boolean   @default(false)  // 位置共有のオプトイン
-  healAt        DateTime?   // 敗北クールダウン後に少量回復する予約時刻(成熟したら適用)
-  poisoned      Boolean   @default(false)  // 毒状態
-  poisonTickAt  DateTime?   // 毒ダメージの遅延計算起点
-  downedUntil   DateTime?   // 戦闘不能(グローバル)の解除時刻。経過後に回復して復帰
-  lastPickupAt  DateTime?   // 散策拾いのクールダウン基準
-  defeatedSpots String   @default("")  // 撃破済みスポットID(カンマ区切り・1レコード)
+  lastSeenAt    DateTime?
+  shareLocation Boolean   @default(false)
 
-  items      PlayerItem[]
-  spotStates PlayerSpotState[]
-  listings   MarketListing[]   @relation("seller")
-  battleLogs BattleLog[]
+  // Status and progression.
+  healAt        DateTime?
+  poisoned      Boolean   @default(false)
+  poisonTickAt  DateTime?
+  downedUntil   DateTime?
+  lastPickupAt  DateTime?
+  defeatedSpots String    @default("") // comma-separated spot IDs
+
+  items         PlayerItem[]
+  spotStates    PlayerSpotState[]
+  listings      MarketListing[] @relation("seller")
+  battleLogs    BattleLog[]
   battleSession BattleSession?
 }
 
@@ -65,26 +67,28 @@ model ItemMaster {
   rarity      String  @default("normal")
   type        String  @default("misc")
   basePrice   Int     @default(0)
-  healAmount  Int     @default(0)  // 使用時のHP回復量(0=回復アイテムでない)
-  category    String  @default("misc")  // heal/antidote/material/currency/collectible
-  curePoison  Boolean @default(false)      // 使用で毒解除
-  sellable    Boolean @default(true)       // 道具屋で売れるか
+  healAmount  Int     @default(0)
+  category    String  @default("misc") // heal/antidote/material/currency/collectible
+  curePoison  Boolean @default(false)
+  sellable    Boolean @default(true)
+
   playerItems PlayerItem[]
   listings    MarketListing[]
 }
 
 model EnemyMaster {
-  enemyId    String @id
-  name       String
-  hp         Int
-  attack     Int
-  defense    Int
-  image      String @default("")
-  expBase      Int    @default(0)   // 基本経験値
-  goldBase     Int    @default(0)   // 基本ゴールド
-  dropItemId   String?              // 確率ドロップ品(任意)
-  dropRate     Float  @default(0)   // ドロップ率(0-1)
-  poisonChance Float  @default(0)   // 毒付与率(0-1)
+  enemyId      String @id
+  name         String
+  hp           Int
+  attack       Int
+  defense      Int
+  image        String @default("")
+  expBase      Int    @default(0)
+  goldBase     Int    @default(0)
+  dropItemId   String?
+  dropRate     Float  @default(0)
+  poisonChance Float  @default(0)
+
   spots      SpotMaster[]
   battleLogs BattleLog[]
 }
@@ -95,12 +99,25 @@ model SpotMaster {
   lat          Float
   lng          Float
   radiusM      Int     @default(50)
+  postalCode   String?
+  muniCd       String?
+  areaName     String?
+  areaKey      String?
   enemyId      String
   enemy        EnemyMaster @relation(fields: [enemyId], references: [enemyId])
   rewardItemId String
   penaltyMin   Int     @default(5)
   active       Boolean @default(true)
-  spotStates   PlayerSpotState[]
+
+  spotStates PlayerSpotState[]
+}
+
+model PostalAreaMaster {
+  areaKey    String @id
+  postalCode String?
+  muniCd     String
+  areaName   String
+  regionName String
 }
 
 model PlayerItem {
@@ -110,6 +127,7 @@ model PlayerItem {
   itemId   String
   item     ItemMaster @relation(fields: [itemId], references: [itemId])
   qty      Int    @default(1)
+
   @@unique([playerId, itemId])
 }
 
@@ -120,6 +138,7 @@ model PlayerSpotState {
   spot         SpotMaster @relation(fields: [spotId], references: [spotId])
   penaltyUntil DateTime?
   victoryUntil DateTime?
+
   @@id([playerId, spotId])
 }
 

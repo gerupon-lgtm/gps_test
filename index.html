@@ -1,51 +1,51 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-  <title>GPS連動ブラウザゲーム 検証版</title>
+  <title>GPS騾｣蜍輔ヶ繝ｩ繧ｦ繧ｶ繧ｲ繝ｼ繝 讀懆ｨｼ迚・/title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
-  <link rel="stylesheet" href="./css/style.css?v=17" />
+  <link rel="stylesheet" href="./css/style.css?v=18" />
 </head>
 <body>
 
-  <!-- ===== 認証オーバーレイ(未ログイン時に表示) ===== -->
+  <!-- ===== 隱崎ｨｼ繧ｪ繝ｼ繝舌・繝ｬ繧､(譛ｪ繝ｭ繧ｰ繧､繝ｳ譎ゅ↓陦ｨ遉ｺ) ===== -->
   <div id="auth-overlay" class="auth-overlay hidden">
     <div class="auth-card">
-      <h2>ログイン / 新規登録</h2>
+      <h2>繝ｭ繧ｰ繧､繝ｳ / 譁ｰ隕冗匳骭ｲ</h2>
       <div class="auth-tabs">
-        <button id="auth-tab-login" class="auth-tab active">ログイン</button>
-        <button id="auth-tab-register" class="auth-tab">新規登録</button>
+        <button id="auth-tab-login" class="auth-tab active">繝ｭ繧ｰ繧､繝ｳ</button>
+        <button id="auth-tab-register" class="auth-tab">譁ｰ隕冗匳骭ｲ</button>
       </div>
       <div id="auth-login-form" class="auth-form">
-        <label>ログインID<input id="auth-login-id" autocomplete="username"></label>
-        <label>パスワード<input id="auth-login-pw" type="password" autocomplete="current-password"></label>
-        <button id="auth-login-btn" class="btn">ログイン</button>
+        <label>繝ｭ繧ｰ繧､繝ｳID<input id="auth-login-id" autocomplete="username"></label>
+        <label>繝代せ繝ｯ繝ｼ繝・input id="auth-login-pw" type="password" autocomplete="current-password"></label>
+        <button id="auth-login-btn" class="btn">繝ｭ繧ｰ繧､繝ｳ</button>
       </div>
       <div id="auth-register-form" class="auth-form hidden">
-        <label>ログインID(3〜40文字)<input id="auth-reg-id" autocomplete="username"></label>
-        <label>パスワード(8文字以上)<input id="auth-reg-pw" type="password" autocomplete="new-password"></label>
-        <label>表示名<input id="auth-reg-name"></label>
-        <label>招待コード<input id="auth-reg-invite"></label>
-        <button id="auth-register-btn" class="btn">登録する</button>
+        <label>繝ｭ繧ｰ繧､繝ｳID(3縲・0譁・ｭ・<input id="auth-reg-id" autocomplete="username"></label>
+        <label>繝代せ繝ｯ繝ｼ繝・8譁・ｭ嶺ｻ･荳・<input id="auth-reg-pw" type="password" autocomplete="new-password"></label>
+        <label>陦ｨ遉ｺ蜷・input id="auth-reg-name"></label>
+        <label>諡帛ｾ・さ繝ｼ繝・input id="auth-reg-invite"></label>
+        <button id="auth-register-btn" class="btn">逋ｻ骭ｲ縺吶ｋ</button>
       </div>
       <p id="auth-msg" class="auth-msg"></p>
     </div>
   </div>
 
-  <!-- ===== 戦闘不能オーバーレイ ===== -->
+  <!-- ===== 謌ｦ髣倅ｸ崎・繧ｪ繝ｼ繝舌・繝ｬ繧､ ===== -->
   <div id="downed-overlay" class="downed-overlay hidden">
     <div class="downed-card">
-      <h2>戦闘不能</h2>
-      <p>しばらく戦闘できません。</p>
-      <p class="downed-count">復帰まで <span id="downed-sec">--</span> 秒</p>
+      <h2>謌ｦ髣倅ｸ崎・</h2>
+      <p>縺励・繧峨￥謌ｦ髣倥〒縺阪∪縺帙ｓ縲・/p>
+      <p class="downed-count">蠕ｩ蟶ｰ縺ｾ縺ｧ <span id="downed-sec">--</span> 遘・/p>
     </div>
   </div>
 
-  <!-- ===== トースト ===== -->
+  <!-- ===== 繝医・繧ｹ繝・===== -->
   <div id="toast" class="toast hidden"></div>
 
-  <!-- ===== DQ風 コマンドメニュー(HUDタップで開く) ===== -->
+  <!-- ===== DQ鬚ｨ 繧ｳ繝槭Φ繝峨Γ繝九Η繝ｼ(HUD繧ｿ繝・・縺ｧ髢九￥) ===== -->
   <div id="menu-overlay" class="menu-overlay hidden">
     <div class="dq-window">
       <div id="menu-content"></div>
@@ -53,149 +53,147 @@
     </div>
   </div>
 
-  <!-- ===== 道具屋モーダル ===== -->
+  <!-- ===== 驕灘・螻九Δ繝ｼ繝繝ｫ ===== -->
   <div id="shop-modal" class="shop-modal hidden">
     <div class="shop-modal-card">
       <div class="shop-modal-head">
-        <h3>🛒 <span id="shop-area-name">道具屋</span></h3>
-        <button id="shop-close" class="shop-close">×</button>
+        <h3>將 <span id="shop-area-name">驕灘・螻・/span></h3>
+        <button id="shop-close" class="shop-close">ﾃ・/button>
       </div>
       <div class="shop-cols">
-        <div class="shop-col"><h4>買う</h4><ul id="shop-buy-list" class="shop-list"></ul></div>
-        <div class="shop-col"><h4>売る</h4><ul id="shop-sell-list" class="shop-list"></ul></div>
+        <div class="shop-col"><h4>雋ｷ縺・/h4><ul id="shop-buy-list" class="shop-list"></ul></div>
+        <div class="shop-col"><h4>螢ｲ繧・/h4><ul id="shop-sell-list" class="shop-list"></ul></div>
       </div>
       <p id="shop-msg" class="muted small"></p>
       <div id="shop-confirm" class="shop-confirm hidden">
         <p id="shop-confirm-msg"></p>
         <div class="shop-confirm-btns">
-          <button id="shop-confirm-yes" class="btn">はい</button>
-          <button id="shop-confirm-no" class="btn btn-sub">いいえ</button>
+          <button id="shop-confirm-yes" class="btn">縺ｯ縺・/button>
+          <button id="shop-confirm-no" class="btn btn-sub">縺・＞縺・/button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ===== デバッグ/テストパネル ===== -->
+  <!-- ===== 繝・ヰ繝・げ/繝・せ繝医ヱ繝阪Ν ===== -->
   <section id="debug-panel" class="debug-panel hidden">
-    <h2>テスト機能(実際に移動せず検証)</h2>
+    <h2>繝・せ繝域ｩ溯・(螳滄圀縺ｫ遘ｻ蜍輔○縺壽､懆ｨｼ)</h2>
     <p class="muted small">
-      位置を手動入力するとモックGPSとして扱われます。実GPSに戻すには「モック解除」を押してください。
-    </p>
+      菴咲ｽｮ繧呈焔蜍募・蜉帙☆繧九→繝｢繝・けGPS縺ｨ縺励※謇ｱ繧上ｌ縺ｾ縺吶ょｮ檬PS縺ｫ謌ｻ縺吶↓縺ｯ縲後Δ繝・け隗｣髯､縲阪ｒ謚ｼ縺励※縺上□縺輔＞縲・    </p>
     <div class="debug-row">
       <select id="spot-jump"></select>
     </div>
     <div class="debug-grid">
-      <label>緯度 <input id="mock-lat" type="number" step="0.000001" placeholder="35.014769" /></label>
-      <label>経度 <input id="mock-lng" type="number" step="0.000001" placeholder="136.660821" /></label>
-      <label>精度(m) <input id="mock-acc" type="number" step="1" value="10" /></label>
+      <label>邱ｯ蠎ｦ <input id="mock-lat" type="number" step="0.000001" placeholder="35.014769" /></label>
+      <label>邨悟ｺｦ <input id="mock-lng" type="number" step="0.000001" placeholder="136.660821" /></label>
+      <label>邊ｾ蠎ｦ(m) <input id="mock-acc" type="number" step="1" value="10" /></label>
     </div>
     <div class="debug-row">
-      <button id="btn-apply-mock" class="btn">この位置を適用</button>
-      <button id="btn-clear-mock" class="btn btn-sub">モック解除</button>
-      <button id="btn-clear-storage" class="btn btn-danger">localStorageクリア</button>
+      <button id="btn-apply-mock" class="btn">縺薙・菴咲ｽｮ繧帝←逕ｨ</button>
+      <button id="btn-clear-mock" class="btn btn-sub">繝｢繝・け隗｣髯､</button>
+      <button id="btn-clear-storage" class="btn btn-danger">localStorage繧ｯ繝ｪ繧｢</button>
     </div>
     <div class="debug-row">
       <label class="checkbox-label">
         <input id="chk-force-lose" type="checkbox" />
-        次の戦闘を必ず敗北させる(敗北ペナルティの検証用)
+        谺｡縺ｮ謌ｦ髣倥ｒ蠢・★謨怜圏縺輔○繧・謨怜圏繝壹リ繝ｫ繝・ぅ縺ｮ讀懆ｨｼ逕ｨ)
       </label>
     </div>
     <p id="debug-status" class="debug-status"></p>
   </section>
 
-  <!-- ===== トップ画面 ===== -->
+  <!-- ===== 繝医ャ繝礼判髱｢ ===== -->
   <main id="screen-top" class="screen">
-    <p class="lead">位置情報(GPS)を使用する検証用ゲームです。</p>
-    <p id="data-status" class="data-status">データ読み込み中...</p>
-    <button id="btn-start" class="btn btn-primary btn-big">位置情報を取得して開始</button>
+    <p class="lead">菴咲ｽｮ諠・ｱ(GPS)繧剃ｽｿ逕ｨ縺吶ｋ讀懆ｨｼ逕ｨ繧ｲ繝ｼ繝縺ｧ縺吶・/p>
+    <p id="data-status" class="data-status">繝・・繧ｿ隱ｭ縺ｿ霎ｼ縺ｿ荳ｭ...</p>
+    <button id="btn-start" class="btn btn-primary btn-big">菴咲ｽｮ諠・ｱ繧貞叙蠕励＠縺ｦ髢句ｧ・/button>
     <p class="notice">
-      ⚠ 実際に移動して検証する際は、周囲の安全を必ず確認してください。歩きスマホはしないでください。
-    </p>
+      笞 螳滄圀縺ｫ遘ｻ蜍輔＠縺ｦ讀懆ｨｼ縺吶ｋ髫帙・縲∝捉蝗ｲ縺ｮ螳牙・繧貞ｿ・★遒ｺ隱阪＠縺ｦ縺上□縺輔＞縲よｭｩ縺阪せ繝槭・縺ｯ縺励↑縺・〒縺上□縺輔＞縲・    </p>
 
     <section class="items-box">
-      <h2>所持アイテム(<span id="items-count">0</span>)</h2>
+      <h2>謇謖√い繧､繝・Β(<span id="items-count">0</span>)</h2>
       <ul id="items-list" class="items-list"></ul>
       <p id="items-msg" class="muted small"></p>
     </section>
   </main>
 
-  <!-- ===== 探索画面(スマホ一画面完結のflex縦並び) ===== -->
+  <!-- ===== 謗｢邏｢逕ｻ髱｢(繧ｹ繝槭・荳逕ｻ髱｢螳檎ｵ舌・flex邵ｦ荳ｦ縺ｳ) ===== -->
   <main id="screen-explore" class="screen explore-screen hidden">
 
-    <!-- 1. 最寄りスポット(最上部・2行表示) -->
+    <!-- 1. 譛蟇・ｊ繧ｹ繝昴ャ繝・譛荳企Κ繝ｻ2陦瑚｡ｨ遉ｺ) -->
     <div class="nearest-box">
-      <div class="nearest-label">最寄りスポット</div>
+      <div class="nearest-label">譛蟇・ｊ繧ｹ繝昴ャ繝・/div>
       <div class="nearest-row">
         <span class="nearest-name" id="nearest-name">-</span>
         <span class="nearest-dist" id="nearest-dist">-</span>
       </div>
     </div>
 
-    <!-- 2. 状態詳細(カウントダウン等) + 敵出現 -->
+    <!-- 2. 迥ｶ諷玖ｩｳ邏ｰ(繧ｫ繧ｦ繝ｳ繝医ム繧ｦ繝ｳ遲・ + 謨ｵ蜃ｺ迴ｾ -->
     <div class="judge-line">
       <span id="judge-state" class="judge hidden"></span>
       <span id="judge-detail" class="judge-detail"></span>
     </div>
 
     <section id="enemy-area" class="enemy-area hidden">
-      <h3>⚔ 敵が出現!</h3>
+      <h3>笞・謨ｵ縺悟・迴ｾ!</h3>
       <p><strong id="enemy-area-enemy">-</strong> <span class="muted small">@ <span id="enemy-area-name">-</span></span></p>
-      <button id="btn-start-battle" class="btn btn-primary">戦闘開始</button>
+      <button id="btn-start-battle" class="btn btn-primary">謌ｦ髣倬幕蟋・/button>
     </section>
 
     <p id="geo-error" class="error-text"></p>
 
-    <!-- 凡例 -->
+    <!-- 蜃｡萓・-->
     <div class="poi-legend">
-      <span class="lg-item"><span class="lg-pin inn">🛏</span>宿屋</span>
-      <span class="lg-item"><span class="lg-pin shop">🛒</span>道具屋</span>
-      <span class="muted small">タップで利用</span>
+      <span class="lg-item"><span class="lg-pin inn">寶</span>螳ｿ螻・/span>
+      <span class="lg-item"><span class="lg-pin shop">將</span>驕灘・螻・/span>
+      <span class="muted small">繧ｿ繝・・縺ｧ蛻ｩ逕ｨ</span>
     </div>
 
-    <!-- 3. 地図(大きく) + 現在地に戻るボタン -->
+    <!-- 3. 蝨ｰ蝗ｳ(螟ｧ縺阪￥) + 迴ｾ蝨ｨ蝨ｰ縺ｫ謌ｻ繧九・繧ｿ繝ｳ -->
     <div class="map-wrap">
       <div id="map" class="map"></div>
       <div id="status-hud" class="status-hud hidden"></div>
-      <button id="btn-recenter" class="map-recenter" title="現在地に戻る">📍 現在地</button>
+      <button id="btn-recenter" class="map-recenter" title="迴ｾ蝨ｨ蝨ｰ縺ｫ謌ｻ繧・>桃 迴ｾ蝨ｨ蝨ｰ</button>
     </div>
 
-    <!-- 4. 座標などの詳細(下部・デフォルト閉じる) -->
+    <!-- 4. 蠎ｧ讓吶↑縺ｩ縺ｮ隧ｳ邏ｰ(荳矩Κ繝ｻ繝・ヵ繧ｩ繝ｫ繝磯哩縺倥ｋ) -->
     <details class="coords-box">
-      <summary>現在地の詳細</summary>
+      <summary>迴ｾ蝨ｨ蝨ｰ縺ｮ隧ｳ邏ｰ</summary>
       <table class="info-table">
-        <tr><th>緯度</th><td id="cur-lat">-</td></tr>
-        <tr><th>経度</th><td id="cur-lng">-</td></tr>
-        <tr><th>GPS精度</th><td id="cur-acc">-</td></tr>
-        <tr><th>取得元</th><td id="cur-source">-</td></tr>
+        <tr><th>邱ｯ蠎ｦ</th><td id="cur-lat">-</td></tr>
+        <tr><th>邨悟ｺｦ</th><td id="cur-lng">-</td></tr>
+        <tr><th>GPS邊ｾ蠎ｦ</th><td id="cur-acc">-</td></tr>
+        <tr><th>蜿門ｾ怜・</th><td id="cur-source">-</td></tr>
       </table>
     </details>
 
     <div class="explore-actions">
-      <button id="btn-spot-list" class="btn btn-sub">📋 スポット一覧</button>
-      <button id="btn-stop" class="btn btn-sub btn-stop">探索をやめる</button>
+      <button id="btn-spot-list" class="btn btn-sub">搭 繧ｹ繝昴ャ繝井ｸ隕ｧ</button>
+      <button id="btn-stop" class="btn btn-sub btn-stop">謗｢邏｢繧偵ｄ繧√ｋ</button>
     </div>
   </main>
 
-  <!-- ===== スポット一覧モーダル ===== -->
+  <!-- ===== 繧ｹ繝昴ャ繝井ｸ隕ｧ繝｢繝ｼ繝繝ｫ ===== -->
   <div id="spot-list-modal" class="modal-overlay hidden">
     <div class="modal-card">
       <div class="modal-head">
-        <h2>スポット一覧(近い順)</h2>
-        <button id="btn-spot-list-close" class="modal-close" aria-label="閉じる">✕</button>
+        <h2>繧ｹ繝昴ャ繝井ｸ隕ｧ(霑代＞鬆・</h2>
+        <button id="btn-spot-list-close" class="modal-close" aria-label="髢峨§繧・>笨・/button>
       </div>
       <p id="spot-list-note" class="muted small"></p>
       <ul id="spot-list" class="spot-list"></ul>
     </div>
   </div>
 
-  <!-- ===== 戦闘画面 ===== -->
+  <!-- ===== 謌ｦ髣倡判髱｢ ===== -->
   <main id="screen-battle" class="screen hidden">
-    <h2>戦闘</h2>
+    <h2>謌ｦ髣・/h2>
     <div class="battle-enemy">
       <img id="battle-enemy-img" class="enemy-img" alt="" />
       <p class="enemy-name" id="battle-enemy-name">-</p>
       <div class="hp-row">
-        <span>敵HP</span>
+        <span>謨ｵHP</span>
         <div class="hp-bar-bg"><div id="enemy-hp-bar" class="hp-bar enemy"></div></div>
         <span><span id="battle-enemy-hp">-</span>/<span id="battle-enemy-hp-max">-</span></span>
       </div>
@@ -203,14 +201,14 @@
 
     <div class="battle-player">
       <div class="hp-row">
-        <span>自HP</span>
+        <span>閾ｪHP</span>
         <div class="hp-bar-bg"><div id="player-hp-bar" class="hp-bar player"></div></div>
         <span><span id="battle-player-hp">-</span>/<span id="battle-player-hp-max">-</span></span>
       </div>
     </div>
 
-    <button id="btn-attack" class="btn btn-primary btn-big">攻撃</button>
-    <button id="btn-use-item" class="btn btn-sub btn-big">アイテム</button>
+    <button id="btn-attack" class="btn btn-primary btn-big">謾ｻ謦・/button>
+    <button id="btn-use-item" class="btn btn-sub btn-big">繧｢繧､繝・Β</button>
     <div id="battle-item-list" class="battle-item-list hidden"></div>
 
     <div id="battle-result" class="battle-result hidden"></div>
@@ -218,26 +216,26 @@
 
     <div id="battle-log" class="battle-log"></div>
 
-    <button id="btn-battle-back" class="btn btn-sub hidden">探索に戻る</button>
+    <button id="btn-battle-back" class="btn btn-sub hidden">謗｢邏｢縺ｫ謌ｻ繧・/button>
   </main>
 
   <footer class="app-footer">
-    <p class="muted small">PoC / 技術検証版 — OCI(Caddy同一オリジン) + Geolocation API + サーバーAPI(認証/取引/位置)</p>
+    <p class="muted small">PoC / 謚陦捺､懆ｨｼ迚・窶・OCI(Caddy蜷御ｸ繧ｪ繝ｪ繧ｸ繝ｳ) + Geolocation API + 繧ｵ繝ｼ繝舌・API(隱崎ｨｼ/蜿門ｼ・菴咲ｽｮ)</p>
   </footer>
 
-  <!-- タイトル/ログアウト/テスト(最下部・非固定) -->
+  <!-- 繧ｿ繧､繝医Ν/繝ｭ繧ｰ繧｢繧ｦ繝・繝・せ繝・譛荳矩Κ繝ｻ髱槫崋螳・ -->
   <header class="app-header app-header-bottom">
-    <h1>GPS連動ブラウザゲーム <span class="badge">検証版</span></h1>
+    <h1>GPS騾｣蜍輔ヶ繝ｩ繧ｦ繧ｶ繧ｲ繝ｼ繝 <span class="badge">讀懆ｨｼ迚・/span></h1>
     <div class="header-right">
-      <button id="btn-logout" class="auth-logout" title="ログアウト">ログアウト</button>
-      <button id="debug-toggle" class="debug-toggle" title="テスト機能">🛠 テスト</button>
+      <button id="btn-logout" class="auth-logout" title="繝ｭ繧ｰ繧｢繧ｦ繝・>繝ｭ繧ｰ繧｢繧ｦ繝・/button>
+      <button id="debug-toggle" class="debug-toggle" title="繝・せ繝域ｩ溯・">屏 繝・せ繝・/button>
     </div>
   </header>
 
-  <!-- Leaflet(地図ライブラリ) -->
+  <!-- Leaflet(蝨ｰ蝗ｳ繝ｩ繧､繝悶Λ繝ｪ) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 
-  <!-- スクリプト(読み込み順に注意: config → 各モジュール → app) -->
+  <!-- 繧ｹ繧ｯ繝ｪ繝励ヨ(隱ｭ縺ｿ霎ｼ縺ｿ鬆・↓豕ｨ諢・ config 竊・蜷・Δ繧ｸ繝･繝ｼ繝ｫ 竊・app) -->
   <script src="./js/config.js?v=9"></script>
   <script src="./js/api.js?v=5"></script>
   <script src="./js/authGate.js?v=2"></script>
@@ -248,6 +246,6 @@
   <script src="./js/storage.js?v=4"></script>
   <script src="./js/map-key.js?v=3"></script>
   <script src="./js/map.js?v=11"></script>
-  <script src="./js/app.js?v=20"></script>
+  <script src="./js/app.js?v=21"></script>
 </body>
 </html>

@@ -119,17 +119,57 @@ app.post("/api/auth/logout", async (req, reply) => {
   return { ok: true };
 });
 
+async function generateTitles(player) {
+  const defeated = new Set((player.defeatedSpots || "").split(",").filter(Boolean));
+  if (defeated.size === 0) return [];
+
+  const [spots, areas] = await Promise.all([
+    prisma.spotMaster.findMany({
+      where: { active: true },
+      select: { spotId: true, areaKey: true },
+    }),
+    prisma.postalAreaMaster.findMany({
+      select: { areaKey: true, regionName: true },
+    }),
+  ]);
+
+  const areaMap = new Map(areas.map((a) => [a.areaKey, a.regionName]));
+  const byArea = new Map();
+  let uncategorizedCleared = 0;
+
+  for (const spot of spots) {
+    const knownArea = spot.areaKey && areaMap.has(spot.areaKey);
+    if (!knownArea) {
+      if (defeated.has(spot.spotId)) uncategorizedCleared++;
+      continue;
+    }
+    if (!byArea.has(spot.areaKey)) byArea.set(spot.areaKey, []);
+    byArea.get(spot.areaKey).push(spot.spotId);
+  }
+
+  const titles = [];
+  for (const [areaKey, spotIds] of byArea.entries()) {
+    if (spotIds.length > 0 && spotIds.every((id) => defeated.has(id))) {
+      const regionName = areaMap.get(areaKey);
+      if (regionName) titles.push(`${regionName}の探索者`);
+    }
+  }
+  if (uncategorizedCleared >= 5) titles.push("開拓者");
+  return titles;
+}
+
 app.get("/api/me", requireAuth(async (req) => {
   let pl = req.player;
   const st = refreshPlayerState(pl);
   if (stateChanged(pl, st)) {
     pl = await prisma.player.update({ where: { id: pl.id }, data: { hp: st.hp, healAt: st.healAt, downedUntil: st.downedUntil, poisoned: st.poisoned, poisonTickAt: st.poisonTickAt } });
   }
+  const titles = await generateTitles(pl);
   return {
     id: pl.id, name: pl.name, level: pl.level, exp: pl.exp,
     hp: pl.hp, maxHp: pl.maxHp, attack: pl.attack, defense: pl.defense, gold: pl.gold,
     shareLocation: pl.shareLocation, healAt: pl.healAt, downedUntil: pl.downedUntil, poisoned: pl.poisoned,
-    nextExp: pl.level * LEVEL_EXP_FACTOR, innCostPerLevel: INN_COST_PER_LEVEL,
+    nextExp: pl.level * LEVEL_EXP_FACTOR, innCostPerLevel: INN_COST_PER_LEVEL, titles,
   };
 }));
 

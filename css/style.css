@@ -559,6 +559,7 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 .dq-qty { color: #cbd5e1; font-size: 0.85em; }
 .dq-eff { color: #86efac; font-size: 0.85em; }
 .dq-stats div { padding: 2px 0; }
+.dq-titles { padding-left: 0.7rem; color: #fcd34d; }
 .dq-msg { margin: 6px 0 0; color: #fcd34d; min-height: 1.2em; font-size: 0.85rem; }
 
 /* ===== 道具屋 確認ダイアログ ===== */
