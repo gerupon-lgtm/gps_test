@@ -17,6 +17,9 @@ h2 { margin: 0 0 12px; font-size: 1rem; color: #dbeafe; }
 h3 { margin: 18px 0 8px; font-size: 0.95rem; color: #bfdbfe; }
 main { padding: 16px; }
 .grid { display: grid; grid-template-columns: minmax(260px, 360px) 1fr; gap: 16px; align-items: start; }
+.tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+.tab { background: #334155; color: #e2e8f0; }
+.tab.active { background: var(--accent); color: #082f49; }
 .card { background: var(--panel); border: 1px solid #334155; border-radius: 12px; padding: 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.25); }
 .hidden { display: none !important; }
 .muted { color: var(--muted); }
@@ -41,7 +44,11 @@ button:hover { filter: brightness(1.08); }
 .actions #disable-reason { max-width: 380px; }
 .msg { min-height: 1.3em; color: #fcd34d; }
 .spot-edit { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr auto; gap: 8px; align-items: end; }
+.master-form { display: grid; grid-template-columns: repeat(2, minmax(180px, 1fr)); gap: 8px 12px; }
+.master-form .check-row { display: flex; align-items: center; gap: 8px; }
+.master-form .check-row input { width: auto; margin: 0; }
 @media (max-width: 760px) {
   .grid { grid-template-columns: 1fr; }
   .spot-edit { grid-template-columns: 1fr; }
+  .master-form { grid-template-columns: 1fr; }
 }

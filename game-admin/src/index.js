@@ -63,6 +63,120 @@ function stringifyDefeatedSpots(ids) {
   return Array.from(new Set(ids || [])).filter(Boolean).join(",");
 }
 
+const MASTER_CONFIG = {
+  spots: {
+    model: "spotMaster",
+    idField: "spotId",
+    labelField: "name",
+    fields: {
+      spotId: "string",
+      name: "string",
+      lat: "number",
+      lng: "number",
+      radiusM: "int",
+      postalCode: "nullableString",
+      muniCd: "nullableString",
+      areaName: "nullableString",
+      areaKey: "nullableString",
+      enemyId: "string",
+      rewardItemId: "string",
+      penaltyMin: "int",
+      active: "boolean",
+    },
+  },
+  enemies: {
+    model: "enemyMaster",
+    idField: "enemyId",
+    labelField: "name",
+    fields: {
+      enemyId: "string",
+      name: "string",
+      hp: "int",
+      attack: "int",
+      defense: "int",
+      image: "string",
+      expBase: "int",
+      goldBase: "int",
+      dropItemId: "nullableString",
+      dropRate: "number",
+      poisonChance: "number",
+      active: "boolean",
+    },
+  },
+  items: {
+    model: "itemMaster",
+    idField: "itemId",
+    labelField: "name",
+    fields: {
+      itemId: "string",
+      name: "string",
+      description: "string",
+      rarity: "string",
+      type: "string",
+      basePrice: "int",
+      healAmount: "int",
+      category: "string",
+      curePoison: "boolean",
+      sellable: "boolean",
+      active: "boolean",
+    },
+  },
+  inns: {
+    model: "innMaster",
+    idField: "innId",
+    labelField: "name",
+    fields: { innId: "string", name: "string", lat: "number", lng: "number", radiusM: "int", active: "boolean" },
+  },
+  shops: {
+    model: "shopMaster",
+    idField: "shopId",
+    labelField: "name",
+    fields: { shopId: "string", name: "string", lat: "number", lng: "number", radiusM: "int", active: "boolean" },
+  },
+  postalAreas: {
+    model: "postalAreaMaster",
+    idField: "areaKey",
+    labelField: "regionName",
+    fields: {
+      areaKey: "string",
+      postalCode: "nullableString",
+      muniCd: "string",
+      areaName: "string",
+      regionName: "string",
+      active: "boolean",
+    },
+  },
+};
+
+function normalizeMasterValue(type, value) {
+  if (type === "boolean") return value === true || value === "true" || value === "1" || value === 1;
+  if (type === "int") {
+    const n = Number(value);
+    if (!Number.isInteger(n)) throw new Error("INVALID_NUMBER");
+    return n;
+  }
+  if (type === "number") {
+    const n = Number(value);
+    if (!Number.isFinite(n)) throw new Error("INVALID_NUMBER");
+    return n;
+  }
+  if (type === "nullableString") {
+    const s = value == null ? "" : String(value).trim();
+    return s === "" ? null : s;
+  }
+  return value == null ? "" : String(value);
+}
+
+function buildMasterData(config, body, allowId) {
+  const data = {};
+  for (const [field, type] of Object.entries(config.fields)) {
+    if (!allowId && field === config.idField) continue;
+    if (!Object.prototype.hasOwnProperty.call(body, field)) continue;
+    data[field] = normalizeMasterValue(type, body[field]);
+  }
+  return data;
+}
+
 app.get("/api/health", async () => ({ ok: true, time: new Date().toISOString() }));
 
 app.post("/api/admin/login", async (req, reply) => {
@@ -225,6 +339,44 @@ app.post("/api/admin/players/:playerId/defeated-spots", requireAdmin(async (req,
   });
   await audit(req.adminName, defeated ? "add_defeated_spot" : "remove_defeated_spot", "Player", before.id, before, result);
   return { ok: true };
+}));
+
+app.get("/api/admin/masters/:type", requireAdmin(async (req, reply) => {
+  const config = MASTER_CONFIG[req.params.type];
+  if (!config) return reply.code(404).send({ error: "マスタ種別が見つかりません" });
+  const rows = await prisma[config.model].findMany({ orderBy: { [config.idField]: "asc" }, take: 1000 });
+  return rows.map((row) => ({
+    id: row[config.idField],
+    label: row[config.labelField],
+    active: Object.prototype.hasOwnProperty.call(row, "active") ? row.active : true,
+  }));
+}));
+
+app.get("/api/admin/masters/:type/:id", requireAdmin(async (req, reply) => {
+  const config = MASTER_CONFIG[req.params.type];
+  if (!config) return reply.code(404).send({ error: "マスタ種別が見つかりません" });
+  const row = await prisma[config.model].findUnique({ where: { [config.idField]: req.params.id } });
+  if (!row) return reply.code(404).send({ error: "マスタが見つかりません" });
+  return { fields: config.fields, data: row };
+}));
+
+app.put("/api/admin/masters/:type/:id", requireAdmin(async (req, reply) => {
+  const config = MASTER_CONFIG[req.params.type];
+  if (!config) return reply.code(404).send({ error: "マスタ種別が見つかりません" });
+  const before = await prisma[config.model].findUnique({ where: { [config.idField]: req.params.id } });
+  if (!before) return reply.code(404).send({ error: "マスタが見つかりません" });
+  let data;
+  try {
+    data = buildMasterData(config, req.body || {}, false);
+  } catch (e) {
+    return reply.code(400).send({ error: "数値項目が不正です" });
+  }
+  const after = await prisma[config.model].update({
+    where: { [config.idField]: req.params.id },
+    data,
+  });
+  await audit(req.adminName, "update_master", req.params.type, req.params.id, before, after);
+  return { ok: true, data: after };
 }));
 
 app.listen({ port: PORT, host: "127.0.0.1" })

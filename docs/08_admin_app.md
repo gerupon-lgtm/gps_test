@@ -38,11 +38,11 @@ Prisma schemaは `server/prisma/schema.prisma` を正とし、管理アプリ側
 - 撃破済みスポットの追加/解除
 - `PlayerSpotState.victoryUntil` の同期更新
 - 操作ログ `AdminAuditLog` 記録
+- マスタ一覧/詳細編集
+- マスタの `active` 切替
 
 後続予定:
 
-- マスタ編集
-- active切替
 - CSVエクスポート
 - CSVインポート
 - 差分プレビュー

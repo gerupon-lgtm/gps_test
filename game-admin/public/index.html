@@ -22,7 +22,12 @@
     </section>
 
     <section id="admin-panel" class="hidden">
-      <div class="grid">
+      <nav class="tabs">
+        <button id="tab-players" class="tab active">プレイヤー管理</button>
+        <button id="tab-masters" class="tab">マスタ管理</button>
+      </nav>
+
+      <div id="players-panel" class="grid">
         <section class="card">
           <h2>プレイヤー一覧</h2>
           <button id="btn-refresh">再読み込み</button>
@@ -32,6 +37,29 @@
         <section class="card">
           <h2>プレイヤー詳細</h2>
           <div id="player-detail" class="muted">プレイヤーを選択してください。</div>
+        </section>
+      </div>
+
+      <div id="masters-panel" class="grid hidden">
+        <section class="card">
+          <h2>マスタ一覧</h2>
+          <label>種別
+            <select id="master-type">
+              <option value="spots">スポット</option>
+              <option value="enemies">敵</option>
+              <option value="items">アイテム</option>
+              <option value="inns">宿屋</option>
+              <option value="shops">道具屋</option>
+              <option value="postalAreas">地域</option>
+            </select>
+          </label>
+          <button id="btn-master-refresh">再読み込み</button>
+          <ul id="master-list" class="list"></ul>
+        </section>
+
+        <section class="card">
+          <h2>マスタ詳細</h2>
+          <div id="master-detail" class="muted">マスタを選択してください。</div>
         </section>
       </div>
     </section>
@@ -71,6 +99,18 @@
     <ul id="spot-state-list" class="list compact"></ul>
     <h3>所持アイテム</h3>
     <ul id="item-list" class="list compact"></ul>
+  </template>
+
+  <template id="master-detail-template">
+    <div class="detail-head">
+      <div>
+        <h3 id="master-title"></h3>
+        <p id="master-id" class="muted"></p>
+      </div>
+    </div>
+    <form id="master-form" class="master-form"></form>
+    <button id="btn-master-save">保存</button>
+    <p id="master-msg" class="msg"></p>
   </template>
 
   <script src="./app.js"></script>

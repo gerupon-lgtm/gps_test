@@ -1,6 +1,15 @@
 let selectedPlayerId = null;
 let selectedPlayer = null;
 let spots = [];
+let selectedMaster = null;
+const MASTER_PRIMARY_IDS = {
+  spots: "spotId",
+  enemies: "enemyId",
+  items: "itemId",
+  inns: "innId",
+  shops: "shopId",
+  postalAreas: "areaKey",
+};
 
 const $ = (id) => document.getElementById(id);
 
@@ -20,6 +29,15 @@ function showAdmin(show) {
   $("login-panel").classList.toggle("hidden", show);
   $("admin-panel").classList.toggle("hidden", !show);
   $("btn-logout").classList.toggle("hidden", !show);
+}
+
+function showTab(tab) {
+  const players = tab === "players";
+  $("players-panel").classList.toggle("hidden", !players);
+  $("masters-panel").classList.toggle("hidden", players);
+  $("tab-players").classList.toggle("active", players);
+  $("tab-masters").classList.toggle("active", !players);
+  if (!players) loadMasters();
 }
 
 async function checkLogin() {
@@ -59,6 +77,20 @@ async function loadPlayers() {
 
 async function loadSpots() {
   spots = await api("/api/admin/spots");
+}
+
+async function loadMasters() {
+  const type = $("master-type").value;
+  const rows = await api("/api/admin/masters/" + encodeURIComponent(type));
+  $("master-list").innerHTML = rows.map((r) =>
+    `<li data-master="${escAttr(r.id)}"><div class="player-row"><span>${esc(r.label)} <span class="muted">(${esc(r.id)})</span></span><span class="badge ${r.active ? "enabled" : "disabled"}">${r.active ? "有効" : "非表示"}</span></div></li>`
+  ).join("");
+}
+
+async function loadMasterDetail(type, id) {
+  selectedMaster = { type, id };
+  const detail = await api("/api/admin/masters/" + encodeURIComponent(type) + "/" + encodeURIComponent(id));
+  renderMasterDetail(type, id, detail.fields, detail.data);
 }
 
 async function loadPlayerDetail(playerId) {
@@ -104,6 +136,41 @@ function renderItems(p) {
   $("item-list").innerHTML = p.items.length
     ? p.items.map((i) => `<li>${esc(i.name)} (${esc(i.itemId)}) x${i.qty} [${esc(i.rarity || "")}]</li>`).join("")
     : "<li>所持アイテムなし</li>";
+}
+
+function renderMasterDetail(type, id, fields, data) {
+  const tpl = $("master-detail-template").content.cloneNode(true);
+  $("master-detail").innerHTML = "";
+  $("master-detail").appendChild(tpl);
+  $("master-title").textContent = data.name || data.regionName || id;
+  $("master-id").textContent = type + " / " + id;
+  const form = $("master-form");
+  form.innerHTML = Object.entries(fields).map(([field, fieldType]) => renderMasterField(type, field, fieldType, data[field])).join("");
+  $("btn-master-save").addEventListener("click", saveMaster);
+}
+
+function renderMasterField(masterType, field, fieldType, value) {
+  const readonly = MASTER_PRIMARY_IDS[masterType] === field;
+  if (fieldType === "boolean") {
+    return `<label class="check-row"><input name="${escAttr(field)}" type="checkbox" ${value ? "checked" : ""} ${readonly ? "disabled" : ""}> ${esc(field)}</label>`;
+  }
+  const inputType = fieldType === "int" || fieldType === "number" ? "number" : "text";
+  const step = fieldType === "number" ? " step=\"any\"" : "";
+  return `<label>${esc(field)}<input name="${escAttr(field)}" type="${inputType}"${step} value="${escAttr(value == null ? "" : value)}" ${readonly ? "readonly" : ""}></label>`;
+}
+
+async function saveMaster() {
+  if (!selectedMaster) return;
+  const form = $("master-form");
+  const body = {};
+  for (const el of Array.from(form.elements)) {
+    if (!el.name || el.disabled || el.readOnly) continue;
+    body[el.name] = el.type === "checkbox" ? el.checked : el.value;
+  }
+  await api("/api/admin/masters/" + encodeURIComponent(selectedMaster.type) + "/" + encodeURIComponent(selectedMaster.id), "PUT", body);
+  $("master-msg").textContent = "保存しました";
+  await loadMasters();
+  await loadMasterDetail(selectedMaster.type, selectedMaster.id);
 }
 
 function syncSpotForm() {
@@ -170,9 +237,17 @@ function escAttr(value) {
 $("btn-login").addEventListener("click", login);
 $("btn-logout").addEventListener("click", logout);
 $("btn-refresh").addEventListener("click", loadPlayers);
+$("tab-players").addEventListener("click", () => showTab("players"));
+$("tab-masters").addEventListener("click", () => showTab("masters"));
+$("master-type").addEventListener("change", loadMasters);
+$("btn-master-refresh").addEventListener("click", loadMasters);
 $("player-list").addEventListener("click", (e) => {
   const li = e.target.closest("[data-player]");
   if (li) loadPlayerDetail(li.dataset.player);
+});
+$("master-list").addEventListener("click", (e) => {
+  const li = e.target.closest("[data-master]");
+  if (li) loadMasterDetail($("master-type").value, li.dataset.master);
 });
 
 checkLogin();
