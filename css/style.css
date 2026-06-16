@@ -496,6 +496,9 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 .toast.hidden { display: none; }
 .toast-title {
   bottom: 18%;
+  width: max-content;
+  max-width: 96vw;
+  white-space: nowrap;
   background: linear-gradient(135deg, #7c2d12, #a16207 45%, #facc15);
   color: #fff7cc;
   border: 2px solid #fde68a;
