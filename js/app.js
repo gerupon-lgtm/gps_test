@@ -623,9 +623,11 @@ function renderBattle() {
 
 function handleWin(win) {
   const spot = resolveSpot(App.currentSpot);
+  const titlesBeforeWin = App.player && Array.isArray(App.player.titles) ? App.player.titles.slice() : null;
+  const serverNewTitles = getServerNewTitles(win);
   if (win && win.victoryUntil && spot) saveVictoryCooldown(spot.spot_id, win.victoryUntil);
   recordExploreWin(spot);
-  notifyNewTitles(win);
+  notifyNewTitles(serverNewTitles);
   if (App.player && win) {
     App.player.hp = win.hp; App.player.maxHp = win.maxHp;
     App.player.gold = win.gold; App.player.level = win.level;
@@ -639,6 +641,9 @@ function handleWin(win) {
   show("battle-reward");
   renderItems();
   API.me().then((me) => {
+    if (serverNewTitles.length === 0 && titlesBeforeWin) {
+      notifyNewTitles(diffTitles(titlesBeforeWin, me && me.titles));
+    }
     App.player = me;
     updateHpDisplay();
   }).catch(() => {});
@@ -679,9 +684,19 @@ function recordExploreWin(spot) {
   }
 }
 
-function notifyNewTitles(win) {
-  if (!win || !win.newTitles || win.newTitles.length === 0) return;
-  showToast("称号獲得: " + win.newTitles.join(" / "));
+function getServerNewTitles(win) {
+  return win && Array.isArray(win.newTitles) ? win.newTitles : [];
+}
+
+function diffTitles(beforeTitles, afterTitles) {
+  if (!Array.isArray(afterTitles) || afterTitles.length === 0) return [];
+  const beforeSet = new Set(Array.isArray(beforeTitles) ? beforeTitles : []);
+  return afterTitles.filter((title) => !beforeSet.has(title));
+}
+
+function notifyNewTitles(titles) {
+  if (!titles || titles.length === 0) return;
+  showToast("称号獲得: " + titles.join(" / "));
 }
 
 // 撃破済みスポットをマップに反映
