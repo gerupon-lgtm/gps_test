@@ -487,6 +487,25 @@ app.get("/api/admin/spots", requireAdmin(async () => {
   return spots.map((s) => ({ spotId: s.spotId, name: s.name }));
 }));
 
+app.get("/api/admin/facilities/proximity", requireAdmin(async (req) => {
+  const thresholdM = Math.max(1, Math.min(1000, Number(req.query.thresholdM || 10)));
+  const warnings = adminCsv.findExistingProximityWarnings({
+    thresholdM,
+    facilities: await loadFacilityRows(prisma),
+  });
+  return {
+    thresholdM,
+    count: warnings.length,
+    warnings: warnings.slice(0, 500).map((warning) => ({
+      message: `${warning.a.name} (${warning.a.type}:${warning.a.id}) と ${warning.b.name} (${warning.b.type}:${warning.b.id}) が約${warning.distanceM}mです`,
+      distanceM: warning.distanceM,
+      a: warning.a,
+      b: warning.b,
+    })),
+    truncated: warnings.length > 500,
+  };
+}));
+
 app.post("/api/admin/players/:playerId/defeated-spots", requireAdmin(async (req, reply) => {
   const schema = z.object({
     spotId: z.string(),

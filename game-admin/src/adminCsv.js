@@ -194,6 +194,21 @@ function findProximityWarnings({ thresholdM, existingFacilities, importedFacilit
   return warnings;
 }
 
+function findExistingProximityWarnings({ thresholdM, facilities }) {
+  const warnings = [];
+  const all = facilities.filter(hasCoordinates);
+  for (let i = 0; i < all.length; i++) {
+    for (let j = i + 1; j < all.length; j++) {
+      const a = all[i];
+      const b = all[j];
+      if (facilityKey(a) === facilityKey(b)) continue;
+      const distanceM = distanceMeters(a.lat, a.lng, b.lat, b.lng);
+      if (distanceM <= thresholdM) warnings.push({ a, b, distanceM: Math.round(distanceM * 10) / 10 });
+    }
+  }
+  return warnings;
+}
+
 function hasCoordinates(row) {
   return Number.isFinite(Number(row.lat)) && Number.isFinite(Number(row.lng));
 }
@@ -221,6 +236,7 @@ function escapeRegExp(value) {
 module.exports = {
   buildMasterData,
   diffMasterRows,
+  findExistingProximityWarnings,
   findProximityWarnings,
   parseCsv,
   rowsToCsvObjects,

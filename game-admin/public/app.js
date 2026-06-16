@@ -114,6 +114,17 @@ async function previewMasterImport() {
   renderImportPreview(preview);
 }
 
+async function checkExistingProximity() {
+  const thresholdM = Number($("proximity-threshold").value || 10);
+  const result = await api("/api/admin/facilities/proximity?thresholdM=" + encodeURIComponent(thresholdM));
+  $("proximity-result").classList.remove("hidden");
+  $("proximity-summary").textContent =
+    `距離 ${result.thresholdM}m 以内: ${result.count}件` + (result.truncated ? "（500件まで表示）" : "");
+  $("proximity-list").innerHTML = result.warnings.length
+    ? result.warnings.map((w) => `<li class="warning">${esc(w.message)}</li>`).join("")
+    : "<li>近接施設はありません</li>";
+}
+
 function renderImportPreview(preview) {
   $("import-preview").classList.remove("hidden");
   $("import-summary").textContent =
@@ -305,6 +316,9 @@ $("tab-masters").addEventListener("click", () => showTab("masters"));
 $("master-type").addEventListener("change", loadMasters);
 $("btn-master-refresh").addEventListener("click", loadMasters);
 $("btn-master-export").addEventListener("click", exportMasterCsv);
+$("btn-proximity-check").addEventListener("click", () => checkExistingProximity().catch((e) => {
+  $("master-detail").textContent = e.message;
+}));
 $("btn-master-preview").addEventListener("click", () => previewMasterImport().catch((e) => {
   $("master-detail").textContent = e.message;
 }));

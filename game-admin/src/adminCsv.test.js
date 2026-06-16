@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 
 const {
   diffMasterRows,
+  findExistingProximityWarnings,
   findProximityWarnings,
 } = require("./adminCsv");
 
@@ -75,4 +76,19 @@ test("does not report a proximity warning against the same facility id", () => {
   });
 
   assert.equal(warnings.length, 0);
+});
+
+test("reports proximity warnings between already registered facilities", () => {
+  const warnings = findExistingProximityWarnings({
+    thresholdM: 10,
+    facilities: [
+      { type: "spots", id: "spot_00001", name: "Spot", lat: 35.00000, lng: 136.00000 },
+      { type: "inns", id: "inn_00001", name: "Inn", lat: 35.00005, lng: 136.00000 },
+      { type: "shops", id: "shop_00001", name: "Far Shop", lat: 35.01000, lng: 136.01000 },
+    ],
+  });
+
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0].a.id, "spot_00001");
+  assert.equal(warnings[0].b.id, "inn_00001");
 });
