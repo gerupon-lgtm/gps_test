@@ -563,6 +563,37 @@ app.get("/api/admin/masters/:type", requireAdmin(async (req, reply) => {
   }));
 }));
 
+app.post("/api/admin/masters/:type", requireAdmin(async (req, reply) => {
+  const config = MASTER_CONFIG[req.params.type];
+  if (!config) return reply.code(404).send({ error: "マスタ種別が見つかりません" });
+  const existing = await prisma[config.model].findMany();
+  const prepared = adminCsv.prepareMasterInsert(config, req.body || {}, existing);
+  if (prepared.errors.length > 0 || !prepared.change) {
+    return reply.code(400).send({ error: prepared.errors.map((e) => e.error).join(", "), errors: prepared.errors });
+  }
+  const thresholdM = Math.max(1, Math.min(1000, Number((req.body && req.body.proximityThresholdM) || 10)));
+  const warnings = ["spots", "inns", "shops"].includes(req.params.type)
+    ? adminCsv.findProximityWarnings({
+        thresholdM,
+        existingFacilities: await loadFacilityRows(prisma),
+        importedFacilities: previewFacilities(req.params.type, config, [prepared.change]),
+      })
+    : [];
+  const row = await prisma[config.model].create({ data: prepared.change.data });
+  await audit(req.adminName, "create_master", req.params.type, prepared.change.id, null, row);
+  return {
+    ok: true,
+    id: prepared.change.id,
+    data: row,
+    warnings: warnings.slice(0, 100).map((warning) => ({
+      message: `${warning.a.name} (${warning.a.type}:${warning.a.id}) と ${warning.b.name} (${warning.b.type}:${warning.b.id}) が約${warning.distanceM}mです`,
+      distanceM: warning.distanceM,
+      a: warning.a,
+      b: warning.b,
+    })),
+  };
+}));
+
 app.get("/api/admin/masters/:type/:id", requireAdmin(async (req, reply) => {
   const config = MASTER_CONFIG[req.params.type];
   if (!config) return reply.code(404).send({ error: "マスタ種別が見つかりません" });

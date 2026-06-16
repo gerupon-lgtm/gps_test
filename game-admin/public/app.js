@@ -2,6 +2,7 @@ let selectedPlayerId = null;
 let selectedPlayer = null;
 let spots = [];
 let selectedMaster = null;
+let masterMode = "edit";
 let currentImportPreview = null;
 const MASTER_PRIMARY_IDS = {
   spots: "spotId",
@@ -10,6 +11,60 @@ const MASTER_PRIMARY_IDS = {
   inns: "innId",
   shops: "shopId",
   postalAreas: "areaKey",
+};
+const MASTER_FIELDS = {
+  spots: {
+    spotId: "string",
+    name: "string",
+    lat: "number",
+    lng: "number",
+    radiusM: "int",
+    postalCode: "nullableString",
+    muniCd: "nullableString",
+    areaName: "nullableString",
+    areaKey: "nullableString",
+    enemyId: "string",
+    rewardItemId: "string",
+    penaltyMin: "int",
+    active: "boolean",
+  },
+  enemies: {
+    enemyId: "string",
+    name: "string",
+    hp: "int",
+    attack: "int",
+    defense: "int",
+    image: "string",
+    expBase: "int",
+    goldBase: "int",
+    dropItemId: "nullableString",
+    dropRate: "number",
+    poisonChance: "number",
+    active: "boolean",
+  },
+  items: {
+    itemId: "string",
+    name: "string",
+    description: "string",
+    rarity: "string",
+    type: "string",
+    basePrice: "int",
+    healAmount: "int",
+    category: "string",
+    curePoison: "boolean",
+    sellable: "boolean",
+    active: "boolean",
+  },
+  inns: { innId: "string", name: "string", lat: "number", lng: "number", radiusM: "int", active: "boolean" },
+  shops: { shopId: "string", name: "string", lat: "number", lng: "number", radiusM: "int", active: "boolean" },
+  postalAreas: {
+    areaKey: "string",
+    postalCode: "nullableString",
+    muniCd: "string",
+    areaName: "string",
+    regionName: "string",
+    active: "boolean",
+  },
 };
 
 const $ = (id) => document.getElementById(id);
@@ -162,9 +217,24 @@ async function applyMasterImport() {
 }
 
 async function loadMasterDetail(type, id) {
+  masterMode = "edit";
   selectedMaster = { type, id };
   const detail = await api("/api/admin/masters/" + encodeURIComponent(type) + "/" + encodeURIComponent(id));
   renderMasterDetail(type, id, detail.fields, detail.data);
+}
+
+function showNewMasterForm() {
+  const type = $("master-type").value;
+  masterMode = "new";
+  selectedMaster = { type, id: null };
+  const fields = MASTER_FIELDS[type];
+  const data = {};
+  for (const [field, fieldType] of Object.entries(fields)) {
+    data[field] = fieldType === "boolean" ? field === "active" : "";
+  }
+  renderMasterDetail(type, "", fields, data);
+  $("master-title").textContent = "新規登録";
+  $("master-id").textContent = type + " / ID空欄なら自動採番";
 }
 
 async function loadPlayerDetail(playerId) {
@@ -224,7 +294,7 @@ function renderMasterDetail(type, id, fields, data) {
 }
 
 function renderMasterField(masterType, field, fieldType, value) {
-  const readonly = MASTER_PRIMARY_IDS[masterType] === field;
+  const readonly = MASTER_PRIMARY_IDS[masterType] === field && masterMode !== "new";
   if (fieldType === "boolean") {
     return `<label class="check-row"><input name="${escAttr(field)}" type="checkbox" ${value ? "checked" : ""} ${readonly ? "disabled" : ""}> ${esc(field)}</label>`;
   }
@@ -238,8 +308,19 @@ async function saveMaster() {
   const form = $("master-form");
   const body = {};
   for (const el of Array.from(form.elements)) {
-    if (!el.name || el.disabled || el.readOnly) continue;
+    if (!el.name || el.disabled || (el.readOnly && masterMode !== "new")) continue;
     body[el.name] = el.type === "checkbox" ? el.checked : el.value;
+  }
+  if (masterMode === "new") {
+    body.proximityThresholdM = Number($("proximity-threshold").value || 10);
+    const result = await api("/api/admin/masters/" + encodeURIComponent(selectedMaster.type), "POST", body);
+    const createdType = selectedMaster.type;
+    masterMode = "edit";
+    selectedMaster = { type: createdType, id: result.id };
+    await loadMasters();
+    await loadMasterDetail(createdType, result.id);
+    $("master-msg").textContent = "登録しました: " + result.id + ((result.warnings && result.warnings.length) ? " / 近接警告 " + result.warnings.length + "件" : "");
+    return;
   }
   await api("/api/admin/masters/" + encodeURIComponent(selectedMaster.type) + "/" + encodeURIComponent(selectedMaster.id), "PUT", body);
   $("master-msg").textContent = "保存しました";
@@ -315,6 +396,7 @@ $("tab-players").addEventListener("click", () => showTab("players"));
 $("tab-masters").addEventListener("click", () => showTab("masters"));
 $("master-type").addEventListener("change", loadMasters);
 $("btn-master-refresh").addEventListener("click", loadMasters);
+$("btn-master-new").addEventListener("click", showNewMasterForm);
 $("btn-master-export").addEventListener("click", exportMasterCsv);
 $("btn-proximity-check").addEventListener("click", () => checkExistingProximity().catch((e) => {
   $("master-detail").textContent = e.message;
