@@ -696,7 +696,7 @@ function diffTitles(beforeTitles, afterTitles) {
 
 function notifyNewTitles(titles) {
   if (!titles || titles.length === 0) return;
-  showToast("称号獲得: " + titles.join(" / "));
+  showToast("称号獲得: " + titles.join(" / "), { kind: "title", duration: 6500 });
 }
 
 // 撃破済みスポットをマップに反映
@@ -749,13 +749,16 @@ async function onDownedTick() {
 
 // ---- 散策拾いトースト ----
 let _toastTimer = null;
-function showToast(msg) {
+function showToast(msg, opts) {
   const el = $("toast");
   if (!el) return;
+  const options = opts || {};
   el.textContent = msg;
+  el.className = "toast";
+  if (options.kind) el.classList.add("toast-" + options.kind);
   el.classList.remove("hidden");
   if (_toastTimer) clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => el.classList.add("hidden"), 3500);
+  _toastTimer = setTimeout(() => el.classList.add("hidden"), options.duration || 3500);
 }
 function onPickup(pickup) {
   showToast("✨ " + pickup.name + " を拾った!");
