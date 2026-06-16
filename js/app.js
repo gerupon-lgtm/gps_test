@@ -526,10 +526,14 @@ async function doBattleAction(action, itemId) {
     return;
   }
   b.busy = false;
+  const wasPoisoned = !!(App.player && App.player.poisoned);
   (r.logs || []).forEach((l) => b.logLines.push(l));
   b.curPlayerHp = r.playerHp;
   b.curEnemyHp = r.enemyHp;
-  if (App.player && typeof r.poisoned !== "undefined") App.player.poisoned = r.poisoned;
+  if (App.player && typeof r.poisoned !== "undefined") {
+    App.player.poisoned = r.poisoned;
+    notifyPoisonChange(wasPoisoned, r.poisoned);
+  }
   if (r.finished) {
     b.finished = true;
     b.result = r.result;
@@ -635,6 +639,7 @@ function handleWin(win) {
   }
   const parts = ["勝利! EXP+" + (win ? win.expGain : 0) + " / " + (win ? win.goldGain : 0) + "G"];
   if (win && win.leveledUp) parts.push("レベルアップ! Lv" + win.level + "(HP全回復)");
+  if (win && win.leveledUp) notifyLevelUp(win);
   if (win && win.rewards && win.rewards.length) parts.push("入手: " + win.rewards.map((r) => r.name).join("、"));
   if (win && win.repeat) parts.push("(撃破済み: 報酬減)");
   $("battle-reward").textContent = parts.join(" / ");
@@ -700,6 +705,19 @@ function notifyNewTitles(titles) {
 }
 
 // 撃破済みスポットをマップに反映
+function notifyLevelUp(win) {
+  if (!win || !win.leveledUp) return;
+  showToast("LEVEL UP! Lv" + win.level + "  HP全回復!", { kind: "level event", duration: 6200 });
+}
+
+function notifyPoisonChange(before, after) {
+  if (!before && after) {
+    showToast("毒におかされた!", { kind: "poison event", duration: 5600 });
+  } else if (before && !after) {
+    showToast("毒が消えた!", { kind: "cure event", duration: 4800 });
+  }
+}
+
 async function refreshDefeatedSpots() {
   if (!App.data) return;
   let ids = [];
@@ -755,7 +773,7 @@ function showToast(msg, opts) {
   const options = opts || {};
   el.textContent = msg;
   el.className = "toast";
-  if (options.kind) el.classList.add("toast-" + options.kind);
+  if (options.kind) String(options.kind).split(/\s+/).filter(Boolean).forEach((kind) => el.classList.add("toast-" + kind));
   el.classList.remove("hidden");
   if (_toastTimer) clearTimeout(_toastTimer);
   _toastTimer = setTimeout(() => el.classList.add("hidden"), options.duration || 3500);
@@ -802,11 +820,13 @@ function onInnEnter(innId) {
   if (!r.obj) return;
   if (!r.ok) { showPoiHint("範囲外(あと約" + (isFinite(r.dist) ? Math.round(r.dist) : "?") + "m)"); return; }
   const inn = r.obj;
+  const wasPoisoned = !!(App.player && App.player.poisoned);
   API.innRest(inn.inn_id).then((r) => {
     if (App.player) { App.player.hp = r.hp; App.player.gold = r.gold; App.player.poisoned = false; App.player.downedUntil = null; }
     updateHpDisplay();
     updateDownedOverlay();
     showToast(inn.inn_name + "で休んだ。HP全回復! (-" + (r.cost || 0) + "G)");
+    notifyPoisonChange(wasPoisoned, false);
     closePoiPopups();
   }).catch((e) => showToast(e.message));
 }
@@ -1009,8 +1029,10 @@ async function onMenuClick(e) {
   if (cmd === "friends") { renderFriends(); return; }
   if (li.dataset.use) {
     try {
+      const wasPoisoned = !!(App.player && App.player.poisoned);
       const r = await API.useItem(li.dataset.use);
       if (App.player) { App.player.hp = r.hp; if (typeof r.poisoned !== "undefined") App.player.poisoned = r.poisoned; }
+      if (typeof r.poisoned !== "undefined") notifyPoisonChange(wasPoisoned, r.poisoned);
       updateHpDisplay();
       $("menu-msg").textContent = r.message || (r.itemName + "をつかった");
     } catch (err) { $("menu-msg").textContent = err.message; }
@@ -1031,8 +1053,10 @@ async function onItemListClick(e) {
   btn.disabled = true;
   $("items-msg").textContent = "";
   try {
+    const wasPoisoned = !!(App.player && App.player.poisoned);
     const r = await API.useItem(btn.dataset.item);
     if (App.player) { App.player.hp = r.hp; if (typeof r.poisoned !== "undefined") App.player.poisoned = r.poisoned; }
+    if (typeof r.poisoned !== "undefined") notifyPoisonChange(wasPoisoned, r.poisoned);
     updateHpDisplay();
     $("items-msg").textContent = (r.message || (r.itemName + "を使った")) + " / 現在 " + r.hp + "/" + r.maxHp;
   } catch (err) {
