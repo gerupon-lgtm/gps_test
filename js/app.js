@@ -801,10 +801,13 @@ function updateHpDisplay() {
     const pct = p.maxHp ? Math.max(0, Math.min(100, (p.hp / p.maxHp) * 100)) : 0;
     const color = pct > 50 ? "#22c55e" : pct > 25 ? "#eab308" : "#ef4444";
     hud.innerHTML =
-      '<div class="hud-row hud-name">' + _esc(p.name) + ' <span class="hud-lv">Lv' + (p.level || 1) + '</span>' +
-        (p.poisoned ? ' <span class="hud-poison">毒</span>' : '') + '</div>' +
-      '<div class="hud-row"><span class="hud-label">HP</span><span class="hud-bar"><span class="hud-bar-fill" style="width:' + pct + '%;background:' + color + '"></span></span><span class="hud-val">' + p.hp + '/' + p.maxHp + '</span></div>' +
-      '<div class="hud-row"><span class="hud-label">G</span><span class="hud-gold">' + p.gold + '</span></div>';
+      '<img class="hud-avatar" src="./assets/avatar_hero.png" alt="プレイヤー">' +
+      '<div class="hud-main">' +
+        '<div class="hud-row hud-name">' + _esc(p.name) + ' <span class="hud-lv">Lv' + (p.level || 1) + '</span>' +
+          (p.poisoned ? ' <span class="hud-poison">毒</span>' : '') + '</div>' +
+        '<div class="hud-row"><span class="hud-label">HP</span><span class="hud-bar"><span class="hud-bar-fill" style="width:' + pct + '%;background:' + color + '"></span></span><span class="hud-val">' + p.hp + '/' + p.maxHp + '</span></div>' +
+        '<div class="hud-row"><span class="hud-label">G</span><span class="hud-gold">' + p.gold + '</span></div>' +
+      '</div>';
     hud.classList.remove("hidden");
   }
 }

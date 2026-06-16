@@ -522,12 +522,19 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
   position: absolute; top: 8px; right: 8px; z-index: 500;
   background: rgba(15,23,42,0.45); color: #fff;
   border: 2px solid rgba(255,255,255,0.85); border-radius: 8px;
-  padding: 5px 8px; font-size: 0.72rem; min-width: 124px;
+  padding: 5px 8px; font-size: 0.72rem; min-width: 156px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.35);
   pointer-events: auto; cursor: pointer;
   font-variant-numeric: tabular-nums;
+  display: flex; align-items: center; gap: 7px;
 }
 .status-hud.hidden { display: none; }
+.status-hud .hud-avatar {
+  width: 32px; height: 32px; flex: none;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,0.75));
+}
+.status-hud .hud-main { flex: 1; min-width: 0; }
 .status-hud .hud-row { display: flex; align-items: center; gap: 5px; line-height: 1.5; }
 .status-hud .hud-name { font-weight: bold; font-size: 0.8rem; margin-bottom: 2px; }
 .status-hud .hud-lv { color: #fcd34d; }
@@ -544,6 +551,10 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 .poi-legend .lg-pin.shop { border-color: #2563eb; }
 .poi-legend .lg-item { display: inline-flex; align-items: center; }
 
+.player-map-icon {
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 2px rgba(0,0,0,0.75));
+}
 
 /* ===== DQ風 コマンドメニュー ===== */
 .menu-overlay { position: fixed; inset: 0; z-index: 1150; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; padding: 1rem; }
