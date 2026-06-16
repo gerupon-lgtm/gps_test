@@ -177,6 +177,21 @@ function diffMasterRows(config, rows, existingRows) {
   return { changes, errors, missingIds };
 }
 
+function prepareMasterInsert(config, raw, existingRows) {
+  const preview = diffMasterRows(config, [raw], existingRows);
+  const change = preview.changes[0] || null;
+  if (change && change.type !== "insert") {
+    return {
+      change: null,
+      errors: [{ id: change.id, error: "同じIDのレコードが既に存在します" }],
+    };
+  }
+  return {
+    change,
+    errors: preview.errors,
+  };
+}
+
 function findProximityWarnings({ thresholdM, existingFacilities, importedFacilities }) {
   const warnings = [];
   const all = [...existingFacilities, ...importedFacilities].filter(hasCoordinates);
@@ -239,6 +254,7 @@ module.exports = {
   findExistingProximityWarnings,
   findProximityWarnings,
   parseCsv,
+  prepareMasterInsert,
   rowsToCsvObjects,
   toCsv,
 };

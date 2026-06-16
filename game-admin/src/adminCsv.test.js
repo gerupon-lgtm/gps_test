@@ -5,6 +5,7 @@ const {
   diffMasterRows,
   findExistingProximityWarnings,
   findProximityWarnings,
+  prepareMasterInsert,
 } = require("./adminCsv");
 
 const spotConfig = {
@@ -91,4 +92,23 @@ test("reports proximity warnings between already registered facilities", () => {
   assert.equal(warnings.length, 1);
   assert.equal(warnings[0].a.id, "spot_00001");
   assert.equal(warnings[0].b.id, "inn_00001");
+});
+
+test("prepares a direct insert with an auto generated id", () => {
+  const result = prepareMasterInsert(spotConfig, {
+    spotId: "",
+    name: "Direct Spot",
+    lat: "35",
+    lng: "136",
+    radiusM: "50",
+    enemyId: "slime",
+    rewardItemId: "potion",
+    penaltyMin: "30",
+  }, [
+    { spotId: "spot_00010", name: "Existing", lat: 35, lng: 136, radiusM: 50, enemyId: "slime", rewardItemId: "potion", penaltyMin: 30, active: true },
+  ]);
+
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.change.id, "spot_00011");
+  assert.equal(result.change.data.active, true);
 });
