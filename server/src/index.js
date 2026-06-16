@@ -129,6 +129,7 @@ async function generateTitlesForDefeated(defeatedSpots, db = prisma) {
       select: { spotId: true, areaKey: true },
     }),
     db.postalAreaMaster.findMany({
+      where: { active: true },
       select: { areaKey: true, regionName: true },
     }),
   ]);
@@ -325,6 +326,7 @@ app.post("/api/battle", requireAuth(async (req, reply) => {
       const spot = await tx.spotMaster.findUnique({ where: { spotId }, include: { enemy: true } });
       if (!spot) throw new Error("SPOT_NOT_FOUND");
       if (!spot.active) throw new Error("SPOT_INACTIVE");
+      if (!spot.enemy || !spot.enemy.active) throw new Error("SPOT_INACTIVE");
 
       const state = await tx.playerSpotState.findUnique({
         where: { playerId_spotId: { playerId, spotId } },
@@ -352,7 +354,7 @@ app.post("/api/battle", requireAuth(async (req, reply) => {
           create: { playerId, spotId, victoryUntil },
         });
         const item = await tx.itemMaster.findUnique({ where: { itemId: spot.rewardItemId } });
-        if (item) {
+        if (item && item.active) {
           const inv = await tx.playerItem.findUnique({
             where: { playerId_itemId: { playerId, itemId: item.itemId } },
           });
@@ -459,7 +461,7 @@ app.post("/api/inn/rest", requireAuth(async (req, reply) => {
   const p = schema.safeParse(req.body);
   if (!p.success) return reply.code(400).send({ error: "入力が不正です" });
   const inn = await prisma.innMaster.findUnique({ where: { innId: p.data.innId } });
-  if (!inn) return reply.code(404).send({ error: "宿屋が見つかりません" });
+  if (!inn || !inn.active) return reply.code(404).send({ error: "宿屋が見つかりません" });
   const cost = req.player.level * INN_COST_PER_LEVEL;
   if (req.player.gold < cost) return reply.code(400).send({ error: "ゴールドが足りません(必要 " + cost + "G)" });
   const pl = await prisma.player.update({
@@ -493,19 +495,54 @@ app.get("/api/players/nearby", requireAuth(async (req) => {
 
 // 宿屋マスタ一覧
 app.get("/api/inns", async () => {
-  const inns = await prisma.innMaster.findMany();
+  const inns = await prisma.innMaster.findMany({ where: { active: true } });
   return inns.map((n) => ({ innId: n.innId, name: n.name, lat: n.lat, lng: n.lng, radiusM: n.radiusM }));
 });
 
 // 道具屋マスタ一覧
 app.get("/api/shops", async () => {
-  const shops = await prisma.shopMaster.findMany();
+  const shops = await prisma.shopMaster.findMany({ where: { active: true } });
   return shops.map((sh) => ({ shopId: sh.shopId, name: sh.name, lat: sh.lat, lng: sh.lng, radiusM: sh.radiusM }));
+});
+
+app.get("/api/master", async () => {
+  const [spots, enemies, items, inns, shops] = await Promise.all([
+    prisma.spotMaster.findMany({
+      where: { active: true },
+      include: { enemy: true },
+      orderBy: { spotId: "asc" },
+    }),
+    prisma.enemyMaster.findMany({ where: { active: true }, orderBy: { enemyId: "asc" } }),
+    prisma.itemMaster.findMany({ where: { active: true }, orderBy: { itemId: "asc" } }),
+    prisma.innMaster.findMany({ where: { active: true }, orderBy: { innId: "asc" } }),
+    prisma.shopMaster.findMany({ where: { active: true }, orderBy: { shopId: "asc" } }),
+  ]);
+  return {
+    version: new Date().toISOString(),
+    spots: spots.filter((s) => s.enemy && s.enemy.active).map((s) => ({
+      spot_id: s.spotId, spot_name: s.name, latitude: s.lat, longitude: s.lng,
+      radius_meters: s.radiusM, enemy_id: s.enemyId, reward_item_id: s.rewardItemId,
+      penalty_minutes: s.penaltyMin, active: s.active,
+      postal_code: s.postalCode, muni_cd: s.muniCd, area_name: s.areaName, area_key: s.areaKey,
+    })),
+    enemies: enemies.map((e) => ({
+      enemy_id: e.enemyId, enemy_name: e.name, hp: e.hp, attack: e.attack,
+      defense: e.defense, image: e.image, exp_base: e.expBase, gold_base: e.goldBase,
+      drop_item_id: e.dropItemId, drop_rate: e.dropRate, poison_chance: e.poisonChance,
+    })),
+    items: items.map((i) => ({
+      item_id: i.itemId, item_name: i.name, description: i.description, rarity: i.rarity,
+      heal: i.healAmount, category: i.category, cure_poison: i.curePoison,
+      price: i.basePrice, sellable: i.sellable,
+    })),
+    inns: inns.map((n) => ({ inn_id: n.innId, inn_name: n.name, latitude: n.lat, longitude: n.lng, radius_meters: n.radiusM })),
+    shops: shops.map((sh) => ({ shop_id: sh.shopId, shop_name: sh.name, latitude: sh.lat, longitude: sh.lng, radius_meters: sh.radiusM })),
+  };
 });
 
 // 道具屋で買える商品(回復系のみ・在庫無限)
 app.get("/api/shop/items", async () => {
-  const items = await prisma.itemMaster.findMany({ where: { OR: [{ category: "heal" }, { category: "antidote" }] } });
+  const items = await prisma.itemMaster.findMany({ where: { active: true, OR: [{ category: "heal" }, { category: "antidote" }] } });
   return items.map((it) => ({ itemId: it.itemId, name: it.name, price: it.basePrice, healAmount: it.healAmount, curePoison: it.curePoison }));
 });
 
@@ -518,9 +555,9 @@ app.post("/api/shop/buy", requireAuth(async (req, reply) => {
   try {
     const out = await prisma.$transaction(async (tx) => {
       const shop = await tx.shopMaster.findUnique({ where: { shopId } });
-      if (!shop) throw new Error("SHOP_NOT_FOUND");
+      if (!shop || !shop.active) throw new Error("SHOP_NOT_FOUND");
       const item = await tx.itemMaster.findUnique({ where: { itemId } });
-      if (!item || (item.category !== "heal" && item.category !== "antidote")) throw new Error("NOT_BUYABLE");
+      if (!item || !item.active || (item.category !== "heal" && item.category !== "antidote")) throw new Error("NOT_BUYABLE");
       const cost = item.basePrice * qty;
       const player = await tx.player.findUnique({ where: { id: req.player.id } });
       if (player.gold < cost) throw new Error("INSUFFICIENT_GOLD");
@@ -603,7 +640,7 @@ async function finalizeWin(tx, player, currentHp, spot, enemy) {
   const rewards = [];
   for (const itemId of rewardIds) {
     const item = await tx.itemMaster.findUnique({ where: { itemId } });
-    if (!item) continue;
+    if (!item || !item.active) continue;
     const inv = await tx.playerItem.findUnique({ where: { playerId_itemId: { playerId: player.id, itemId } } });
     if (inv) await tx.playerItem.update({ where: { id: inv.id }, data: { qty: inv.qty + 1 } });
     else await tx.playerItem.create({ data: { playerId: player.id, itemId, qty: 1 } });
@@ -663,6 +700,7 @@ app.post("/api/battle/start", requireAuth(async (req, reply) => {
       const spot = await tx.spotMaster.findUnique({ where: { spotId: p.data.spotId }, include: { enemy: true } });
       if (!spot) throw new Error("SPOT_NOT_FOUND");
       if (!spot.active) throw new Error("SPOT_INACTIVE");
+      if (!spot.enemy || !spot.enemy.active) throw new Error("SPOT_INACTIVE");
       const state = await tx.playerSpotState.findUnique({ where: { playerId_spotId: { playerId, spotId: spot.spotId } } });
       const now = new Date();
       if (state && state.penaltyUntil && state.penaltyUntil > now) throw new Error("PENALTY_ACTIVE");
@@ -703,6 +741,7 @@ app.post("/api/battle/action", requireAuth(async (req, reply) => {
       const session = await tx.battleSession.findUnique({ where: { playerId } });
       if (!session || session.status !== "active") throw new Error("NO_BATTLE");
       const spot = await tx.spotMaster.findUnique({ where: { spotId: session.spotId }, include: { enemy: true } });
+      if (!spot || !spot.active || !spot.enemy || !spot.enemy.active) throw new Error("NO_BATTLE");
       const enemy = spot.enemy;
       const player = await tx.player.findUnique({ where: { id: playerId } });
       const st0 = refreshPlayerState(player);

@@ -17,6 +17,12 @@ function parseCsv(text) {
 }
 const read = (f) => parseCsv(fs.readFileSync(path.join(DATA_DIR, f), "utf8"));
 
+function parseActive(v) {
+  if (v === undefined || v === null || String(v).trim() === "") return true;
+  const s = String(v).trim().toLowerCase();
+  return s === "true" || s === "1" || s === "yes";
+}
+
 async function main() {
   const enemies = read("enemies.csv");
   const items = read("items.csv");
@@ -29,6 +35,7 @@ async function main() {
       name: e.enemy_name, hp: +e.hp, attack: +e.attack, defense: +e.defense, image: e.image || "",
       expBase: +(e.exp_base || 0), goldBase: +(e.gold_base || 0),
       dropItemId: e.drop_item_id || null, dropRate: +(e.drop_rate || 0), poisonChance: +(e.poison_chance || 0),
+      active: parseActive(e.active),
     };
     await prisma.enemyMaster.upsert({
       where: { enemyId: e.enemy_id },
@@ -43,6 +50,7 @@ async function main() {
       curePoison: String(i.cure_poison) === "1" || String(i.cure_poison).toLowerCase() === "true",
       basePrice: +(i.price || 0),
       sellable: i.sellable === undefined ? true : (String(i.sellable) === "1" || String(i.sellable).toLowerCase() === "true"),
+      active: parseActive(i.active),
     };
     await prisma.itemMaster.upsert({
       where: { itemId: i.item_id },
@@ -58,6 +66,7 @@ async function main() {
         muniCd: a.muni_cd || "",
         areaName: a.area_name || "",
         regionName: a.region_name || a.area_name || "",
+        active: parseActive(a.active),
       },
       create: {
         areaKey: a.area_key,
@@ -65,6 +74,7 @@ async function main() {
         muniCd: a.muni_cd || "",
         areaName: a.area_name || "",
         regionName: a.region_name || a.area_name || "",
+        active: parseActive(a.active),
       },
     });
   }
@@ -76,13 +86,13 @@ async function main() {
         name: s.spot_name, lat: +s.latitude, lng: +s.longitude, radiusM: +s.radius_meters,
         postalCode: s.postal_code || null, muniCd: s.muni_cd || null, areaName: s.area_name || null, areaKey: s.area_key || null,
         enemyId: s.enemy_id, rewardItemId: s.reward_item_id, penaltyMin: +s.penalty_minutes,
-        active: String(s.active).toLowerCase() === "true",
+        active: parseActive(s.active),
       },
       create: {
         spotId: s.spot_id, name: s.spot_name, lat: +s.latitude, lng: +s.longitude, radiusM: +s.radius_meters,
         postalCode: s.postal_code || null, muniCd: s.muni_cd || null, areaName: s.area_name || null, areaKey: s.area_key || null,
         enemyId: s.enemy_id, rewardItemId: s.reward_item_id, penaltyMin: +s.penalty_minutes,
-        active: String(s.active).toLowerCase() === "true",
+        active: parseActive(s.active),
       },
     });
   }
@@ -93,8 +103,8 @@ async function main() {
   for (const n of inns) {
     await prisma.innMaster.upsert({
       where: { innId: n.inn_id },
-      update: { name: n.inn_name, lat: +n.latitude, lng: +n.longitude, radiusM: +n.radius_meters },
-      create: { innId: n.inn_id, name: n.inn_name, lat: +n.latitude, lng: +n.longitude, radiusM: +n.radius_meters },
+      update: { name: n.inn_name, lat: +n.latitude, lng: +n.longitude, radiusM: +n.radius_meters, active: parseActive(n.active) },
+      create: { innId: n.inn_id, name: n.inn_name, lat: +n.latitude, lng: +n.longitude, radiusM: +n.radius_meters, active: parseActive(n.active) },
     });
   }
 
@@ -104,8 +114,8 @@ async function main() {
   for (const sh of shops) {
     await prisma.shopMaster.upsert({
       where: { shopId: sh.shop_id },
-      update: { name: sh.shop_name, lat: +sh.latitude, lng: +sh.longitude, radiusM: +sh.radius_meters },
-      create: { shopId: sh.shop_id, name: sh.shop_name, lat: +sh.latitude, lng: +sh.longitude, radiusM: +sh.radius_meters },
+      update: { name: sh.shop_name, lat: +sh.latitude, lng: +sh.longitude, radiusM: +sh.radius_meters, active: parseActive(sh.active) },
+      create: { shopId: sh.shop_id, name: sh.shop_name, lat: +sh.latitude, lng: +sh.longitude, radiusM: +sh.radius_meters, active: parseActive(sh.active) },
     });
   }
 

@@ -45,6 +45,7 @@ const API = {
   spotStates: () => _api("/api/spot-states", "GET"),
   inventory: () => _api("/api/inventory", "GET"),
   inns: () => _api("/api/inns", "GET"),
+  master: () => _api("/api/master", "GET"),
 };
 
 // 位置報告(throttle付き)。プレイ中の位置更新ごとに呼ばれても一定間隔でのみ送信。

@@ -71,6 +71,7 @@ model ItemMaster {
   category    String  @default("misc") // heal/antidote/material/currency/collectible
   curePoison  Boolean @default(false)
   sellable    Boolean @default(true)
+  active      Boolean @default(true)
 
   playerItems PlayerItem[]
   listings    MarketListing[]
@@ -88,6 +89,7 @@ model EnemyMaster {
   dropItemId   String?
   dropRate     Float  @default(0)
   poisonChance Float  @default(0)
+  active       Boolean @default(true)
 
   spots      SpotMaster[]
   battleLogs BattleLog[]
@@ -118,6 +120,7 @@ model PostalAreaMaster {
   muniCd     String
   areaName   String
   regionName String
+  active     Boolean @default(true)
 }
 
 model PlayerItem {
@@ -173,6 +176,7 @@ model InnMaster {
   lat     Float
   lng     Float
   radiusM Int    @default(50)
+  active  Boolean @default(true)
 }
 
 model ShopMaster {
@@ -181,6 +185,7 @@ model ShopMaster {
   lat     Float
   lng     Float
   radiusM Int    @default(50)
+  active  Boolean @default(true)
 }
 
 model BattleSession {

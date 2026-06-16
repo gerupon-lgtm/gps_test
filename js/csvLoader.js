@@ -100,6 +100,20 @@ function normalizeShops(rows) {
 
 // 3ファイルをまとめて読み込む
 async function loadGameData() {
+  if (typeof API !== "undefined") {
+    const master = await API.master();
+    const spots = master.spots || [];
+    const enemies = master.enemies || [];
+    const items = master.items || [];
+    const inns = master.inns || [];
+    const shops = master.shops || [];
+    const enemyMap = {};
+    enemies.forEach((e) => (enemyMap[e.enemy_id] = e));
+    const itemMap = {};
+    items.forEach((i) => (itemMap[i.item_id] = i));
+    return { spots, enemies, items, enemyMap, itemMap, inns, shops, version: master.version };
+  }
+
   const [spotsText, enemiesText, itemsText] = await Promise.all([
     loadCsv(CONFIG.PATHS.spots),
     loadCsv(CONFIG.PATHS.enemies),
