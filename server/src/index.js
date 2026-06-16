@@ -41,6 +41,8 @@ async function getPlayerFromReq(req) {
   if (!sid) return null;
   const session = await prisma.session.findUnique({ where: { id: sid } });
   if (!session || session.expiresAt < new Date()) return null;
+  const user = await prisma.user.findUnique({ where: { id: session.userId } });
+  if (!user || user.disabled) return null;
   return prisma.player.findUnique({ where: { userId: session.userId } });
 }
 
@@ -104,6 +106,9 @@ app.post("/api/auth/login", async (req, reply) => {
   const user = await prisma.user.findUnique({ where: { loginId: p.data.loginId } });
   if (!user || !verifyPassword(p.data.password, user.passwordHash)) {
     return reply.code(401).send({ error: "IDまたはパスワードが違います" });
+  }
+  if (user.disabled) {
+    return reply.code(403).send({ error: "このアカウントは停止されています" });
   }
   const session = await prisma.session.create({
     data: { userId: user.id, expiresAt: new Date(Date.now() + SESSION_DAYS * 864e5) },

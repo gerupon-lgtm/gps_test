@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GPSゲーム 管理</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <header>
+    <h1>GPSゲーム 管理</h1>
+    <button id="btn-logout" class="hidden">ログアウト</button>
+  </header>
+
+  <main>
+    <section id="login-panel" class="card">
+      <h2>管理者ログイン</h2>
+      <label>管理者ID<input id="login-id" autocomplete="username"></label>
+      <label>パスワード<input id="login-password" type="password" autocomplete="current-password"></label>
+      <button id="btn-login">ログイン</button>
+      <p id="login-msg" class="msg"></p>
+    </section>
+
+    <section id="admin-panel" class="hidden">
+      <div class="grid">
+        <section class="card">
+          <h2>プレイヤー一覧</h2>
+          <button id="btn-refresh">再読み込み</button>
+          <ul id="player-list" class="list"></ul>
+        </section>
+
+        <section class="card">
+          <h2>プレイヤー詳細</h2>
+          <div id="player-detail" class="muted">プレイヤーを選択してください。</div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <template id="player-detail-template">
+    <div class="detail-head">
+      <div>
+        <h3 data-field="name"></h3>
+        <p class="muted" data-field="login"></p>
+      </div>
+      <span data-field="disabled-badge" class="badge"></span>
+    </div>
+    <dl class="stats">
+      <dt>Lv</dt><dd data-field="level"></dd>
+      <dt>HP</dt><dd data-field="hp"></dd>
+      <dt>G</dt><dd data-field="gold"></dd>
+      <dt>毒</dt><dd data-field="poisoned"></dd>
+      <dt>戦闘不能</dt><dd data-field="downed"></dd>
+    </dl>
+    <div class="actions">
+      <input id="disable-reason" placeholder="停止理由">
+      <button id="btn-disable">ログイン停止</button>
+      <button id="btn-enable">停止解除</button>
+      <button id="btn-clear-sessions">セッション削除</button>
+    </div>
+    <p id="detail-msg" class="msg"></p>
+    <h3>撃破済みスポット編集</h3>
+    <div class="spot-edit">
+      <select id="spot-select"></select>
+      <label><input id="spot-defeated" type="checkbox"> 撃破済みにする</label>
+      <label>victoryUntil<input id="spot-victory-until" type="datetime-local"></label>
+      <label><input id="spot-clear-penalty" type="checkbox"> penaltyUntilもクリア</label>
+      <button id="btn-save-spot">保存</button>
+    </div>
+    <h3>スポット状態</h3>
+    <ul id="spot-state-list" class="list compact"></ul>
+    <h3>所持アイテム</h3>
+    <ul id="item-list" class="list compact"></ul>
+  </template>
+
+  <script src="./app.js"></script>
+</body>
+</html>

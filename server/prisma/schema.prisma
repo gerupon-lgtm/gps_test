@@ -13,6 +13,9 @@ model User {
   loginId      String    @unique
   passwordHash String
   createdAt    DateTime  @default(now())
+  disabled     Boolean   @default(false)
+  disabledAt   DateTime?
+  disabledReason String?
   player       Player?
   sessions     Session[]
 }
@@ -199,4 +202,15 @@ model BattleSession {
   poisonApplied Boolean  @default(false)
   status        String   @default("active") // active / won / lost
   createdAt     DateTime @default(now())
+}
+
+model AdminAuditLog {
+  id         String   @id @default(cuid())
+  adminName  String?
+  action     String
+  targetType String
+  targetId   String?
+  beforeJson String?
+  afterJson  String?
+  createdAt  DateTime @default(now())
 }
