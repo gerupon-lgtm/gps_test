@@ -801,7 +801,7 @@ function updateHpDisplay() {
     const pct = p.maxHp ? Math.max(0, Math.min(100, (p.hp / p.maxHp) * 100)) : 0;
     const color = pct > 50 ? "#22c55e" : pct > 25 ? "#eab308" : "#ef4444";
     hud.innerHTML =
-      '<img class="hud-avatar" src="./assets/avatar_hero.png" alt="プレイヤー">' +
+      '<img class="hud-avatar" src="./assets/avatar_dog.png" alt="プレイヤー">' +
       '<div class="hud-main">' +
         '<div class="hud-row hud-name">' + _esc(p.name) + ' <span class="hud-lv">Lv' + (p.level || 1) + '</span>' +
           (p.poisoned ? ' <span class="hud-poison">毒</span>' : '') + '</div>' +
