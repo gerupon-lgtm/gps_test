@@ -9,11 +9,17 @@ from tkinter import filedialog, messagebox, scrolledtext
 import googlemaps
 import requests
 
-from output_format import build_master_row, get_output_config
+from output_format import (
+    POSTAL_AREA_HEADERS,
+    build_master_row,
+    build_postal_area_rows,
+    get_output_config,
+)
 
 
 CONFIG_FILE = "config.ini"
 INPUT_ENCODINGS = ["utf-8-sig", "utf-8", "cp932"]
+POSTAL_AREAS_FILENAME = "postalAreas.csv"
 MASTER_TYPE_LABELS = {
     "spots": "スポット",
     "inns": "宿屋",
@@ -29,14 +35,14 @@ def load_api_key():
             config.write(f)
         messagebox.showerror(
             "エラー",
-            "config.ini が見つからなかったため作成しました。Google Maps API キーを設定してください。",
+            "config.ini を作成しました。GOOGLE_MAPS_API_KEY を設定して再起動してください。",
         )
         raise SystemExit(1)
 
     config.read(CONFIG_FILE, encoding="utf-8")
     api_key = config.get("SETTINGS", "GOOGLE_MAPS_API_KEY", fallback="")
     if not api_key or api_key == "YOUR_API_KEY_HERE":
-        messagebox.showerror("エラー", "config.ini に有効な Google Maps API キーを設定してください。")
+        messagebox.showerror("エラー", "config.ini に有効な GOOGLE_MAPS_API_KEY を設定してください。")
         raise SystemExit(1)
     return api_key
 
@@ -46,7 +52,7 @@ gmaps = googlemaps.Client(key=API_KEY)
 
 
 def extract_location_hint(filename):
-    """ファイル名から都道府県・市区町村らしい地名を抽出する。"""
+    """Extract a Japanese prefecture/city hint from the filename when possible."""
     pattern = r"([一-龥]+[都道府県])?([一-龥]+[市区町村])"
     match = re.search(pattern, filename)
     if match:
@@ -55,7 +61,7 @@ def extract_location_hint(filename):
 
 
 def get_coordinates(facility_name, location_hint, app_instance):
-    """Google Maps Geocoding API から緯度経度を取得する。"""
+    """Fetch latitude and longitude from Google Maps Geocoding API."""
     search_query = f"{location_hint} {facility_name}".strip()
     try:
         geocode_result = gmaps.geocode(search_query, language="ja")
@@ -69,7 +75,7 @@ def get_coordinates(facility_name, location_hint, app_instance):
 
 
 def get_gsi_info(val1, val2, app_instance):
-    """国土地理院の逆ジオコーディングAPIから muniCd と町丁目名を取得する。"""
+    """Fetch muniCd and area name from the GSI reverse geocoder."""
     try:
         num1 = float(val1)
         num2 = float(val2)
@@ -91,6 +97,10 @@ def get_gsi_info(val1, val2, app_instance):
     except Exception as e:
         app_instance.log(f"  国土地理院APIエラー: {e}")
     return ":"
+
+
+def get_postal_area_output_path(spot_output_file_path):
+    return os.path.join(os.path.dirname(spot_output_file_path), POSTAL_AREAS_FILENAME)
 
 
 class App(tk.Tk):
@@ -142,7 +152,7 @@ class App(tk.Tk):
 
         self.btn_run = tk.Button(
             self,
-            text="処理開始（管理アプリ用CSVをShift-JISで出力）",
+            text="処理開始（管理アプリ用CSVをCP932で出力）",
             command=self.execute_processing,
             state="disabled",
             bg="#4CAF50",
@@ -157,7 +167,11 @@ class App(tk.Tk):
     def update_default_info(self):
         master_type = self.master_type.get()
         if master_type == "spots":
-            text = "スポット既定値: radiusM=30, enemyId=enemy_001, rewardItemId=item_001, penaltyMin=3, active=true"
+            text = (
+                "スポット既定値: radiusM=30, enemyId=enemy_001, "
+                "rewardItemId=item_001, penaltyMin=3, active=true。"
+                "地域CSV postalAreas.csv も出力します。"
+            )
         else:
             text = f"{MASTER_TYPE_LABELS[master_type]}既定値: radiusM=50, active=true"
         self.lbl_defaults.config(text=text)
@@ -221,6 +235,7 @@ class App(tk.Tk):
                 return
 
             output_rows = []
+            gsi_infos = []
             for facility in facility_list:
                 facility_clean = facility.split(",")[0].strip()
                 lat, lng = get_coordinates(facility_clean, location_hint, self)
@@ -233,6 +248,8 @@ class App(tk.Tk):
                 self.log(f"  座標取得成功: {facility_clean} -> 緯度:{lat}, 経度:{lng}")
                 gsi_info = get_gsi_info(lat, lng, self)
                 self.log(f"  住所コード取得結果: {gsi_info}")
+                if master_type == "spots":
+                    gsi_infos.append(gsi_info)
                 output_rows.append(build_master_row(master_type, facility_clean, lat, lng, gsi_info))
 
             with open(output_file_path, "w", newline="", encoding="cp932", errors="replace") as f:
@@ -240,8 +257,17 @@ class App(tk.Tk):
                 writer.writerow(get_output_config(master_type).headers)
                 writer.writerows(output_rows)
 
-            self.log("\n--- 処理完了 ---")
             self.log(f"ファイルを出力しました: {output_file_path}")
+            if master_type == "spots":
+                postal_area_rows = build_postal_area_rows(gsi_infos)
+                postal_area_path = get_postal_area_output_path(output_file_path)
+                with open(postal_area_path, "w", newline="", encoding="cp932", errors="replace") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(POSTAL_AREA_HEADERS)
+                    writer.writerows(postal_area_rows)
+                self.log(f"地域ファイルを出力しました: {postal_area_path} ({len(postal_area_rows)}件)")
+
+            self.log("--- 処理完了 ---")
             messagebox.showinfo("完了", "CSVファイルの出力が完了しました。")
         except Exception as e:
             self.log(f"致命的なエラーが発生しました: {e}")

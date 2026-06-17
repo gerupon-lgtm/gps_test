@@ -21,6 +21,8 @@
 
 出力文字コードは CP932 です。管理アプリ側ではCSV文字コードに `SJIS` を選んで取り込みます。
 
+スポットを出力した場合は、同じ保存先フォルダに地域マスタ取り込み用の `postalAreas.csv` も出力します。
+
 ## 出力列
 
 スポット:
@@ -41,6 +43,12 @@ innId,name,lat,lng,radiusM,active
 shopId,name,lat,lng,radiusM,active
 ```
 
+地域:
+
+```csv
+areaKey,postalCode,muniCd,areaName,regionName,active
+```
+
 ## 既定値
 
 | 種別 | 既定値 |
@@ -52,3 +60,5 @@ shopId,name,lat,lng,radiusM,active
 ID列は空欄で出力します。管理アプリのCSVプレビュー時に、既存IDの最大番号から次の `spot_00001` / `inn_00001` / `shop_00001` 形式のIDが自動採番されます。
 
 スポットでは国土地理院の逆ジオコーディング結果から `muniCd`, `areaName`, `areaKey` を設定します。宿屋と道具屋では管理アプリのマスタ項目に合わせて地域情報列は出力しません。
+
+`postalAreas.csv` には、スポット出力時に取得できた地域情報を `areaKey` 単位で重複排除して出力します。`postalCode` は空欄、`regionName` は `areaName` と同じ値、`active` は `true` です。地域情報が取得できなかったスポットは地域CSVには含めません。

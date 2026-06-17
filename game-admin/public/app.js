@@ -228,9 +228,31 @@ function renderImportPreview(preview) {
     ? preview.warnings.map((w) => `<li class="warning">${esc(w.message)}</li>`).join("")
     : "<li>警告なし</li>";
   $("import-changes").innerHTML = preview.changes.length
-    ? preview.changes.map((c) => `<li>${esc(c.type)}: ${esc(c.id)} / ${esc(c.changedFields.join(", ") || "変更なし")}</li>`).join("")
+    ? preview.changes.map((c, index) => renderImportChange(preview.fields, c, index)).join("")
     : "<li>変更なし</li>";
   $("btn-master-apply").disabled = preview.errors.length > 0;
+}
+
+function renderImportChange(fields, change, index) {
+  const duplicateLabel = change.duplicate ? " / 重複" : "";
+  const checked = change.import === false ? "" : " checked";
+  const warnings = (change.warnings || []).map((warning) => `<div class="warning inline-warning">${esc(warning.message)}</div>`).join("");
+  return `<li class="import-change" data-import-index="${index}">
+    <label class="check-row"><input class="import-include" type="checkbox"${checked}> 取込む</label>
+    <div><strong>${esc(change.type)}: ${esc(change.id)}</strong><span class="muted">${duplicateLabel} / ${esc(change.changedFields.join(", ") || "変更なし")}</span></div>
+    ${warnings}
+    <div class="master-form">${Object.entries(fields).map(([field, fieldType]) => renderImportField(field, fieldType, change.data[field])).join("")}</div>
+  </li>`;
+}
+
+function renderImportField(field, fieldType, value) {
+  const readonly = MASTER_PRIMARY_IDS[$("master-type").value] === field;
+  if (fieldType === "boolean") {
+    return `<label class="check-row">${esc(field)}<input name="${escAttr(field)}" type="checkbox" ${value ? "checked" : ""}></label>`;
+  }
+  const inputType = fieldType === "int" || fieldType === "number" ? "number" : "text";
+  const step = fieldType === "number" ? " step=\"any\"" : "";
+  return `<label>${esc(field)}<input name="${escAttr(field)}" type="${inputType}"${step} value="${escAttr(value == null ? "" : value)}" ${readonly ? "readonly" : ""}></label>`;
 }
 
 async function fileToBase64(file) {
@@ -246,11 +268,29 @@ async function fileToBase64(file) {
 async function applyMasterImport() {
   if (!currentImportPreview) return;
   const type = $("master-type").value;
-  const r = await api("/api/admin/masters/" + encodeURIComponent(type) + "/import/apply", "POST", { previewId: currentImportPreview.previewId });
+  const r = await api("/api/admin/masters/" + encodeURIComponent(type) + "/import/apply", "POST", {
+    previewId: currentImportPreview.previewId,
+    selectedChanges: collectSelectedImportChanges(),
+  });
   $("import-summary").textContent = "反映しました: " + r.applied + "件";
   currentImportPreview = null;
   await loadMasters();
   $("master-detail").textContent = "CSVを反映しました: " + r.applied + "件";
+}
+
+function collectSelectedImportChanges() {
+  return Array.from(document.querySelectorAll("[data-import-index]")).map((row) => {
+    const change = currentImportPreview.changes[Number(row.dataset.importIndex)];
+    const data = {};
+    row.querySelectorAll("input[name]").forEach((input) => {
+      data[input.name] = input.type === "checkbox" ? input.checked : input.value;
+    });
+    return {
+      id: change.id,
+      import: Boolean(row.querySelector(".import-include").checked),
+      data,
+    };
+  });
 }
 
 async function loadMasterDetail(type, id) {

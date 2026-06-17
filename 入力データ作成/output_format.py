@@ -36,6 +36,8 @@ OUTPUT_CONFIGS = {
     ),
 }
 
+POSTAL_AREA_HEADERS = ["areaKey", "postalCode", "muniCd", "areaName", "regionName", "active"]
+
 
 def get_output_config(master_type):
     try:
@@ -78,3 +80,15 @@ def build_master_row(master_type, facility_name, lat, lng, gsi_info):
             "true",
         ]
     return ["", facility_name, lat, lng, config.default_radius_m, "true"]
+
+
+def build_postal_area_rows(gsi_infos):
+    rows = []
+    seen = set()
+    for gsi_info in gsi_infos:
+        muni_cd, area_name, area_key = parse_gsi_info(gsi_info)
+        if not area_key or area_key in seen:
+            continue
+        seen.add(area_key)
+        rows.append([area_key, "", muni_cd, area_name, area_name, "true"])
+    return rows

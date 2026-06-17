@@ -9,6 +9,7 @@ test("loads admin scripts with cache-busting versions", () => {
 
   assert.match(ADMIN_APP_VERSION.version, /^\d+\.\d+\.\d+$/);
   assert.equal(ADMIN_APP_VERSION.assetsVersion, ADMIN_APP_VERSION.version);
+  assert.match(html, new RegExp(`<link rel="stylesheet" href="\\.\\/style\\.css\\?v=${ADMIN_APP_VERSION.assetsVersion}">`));
   assert.match(html, new RegExp(`<script src="\\.\\/adminVersion\\.js\\?v=${ADMIN_APP_VERSION.assetsVersion}"><\\/script>`));
   assert.match(html, new RegExp(`<script src="\\.\\/adminTime\\.js\\?v=${ADMIN_APP_VERSION.assetsVersion}"><\\/script>`));
   assert.match(html, new RegExp(`<script src="\\.\\/app\\.js\\?v=${ADMIN_APP_VERSION.assetsVersion}"><\\/script>`));

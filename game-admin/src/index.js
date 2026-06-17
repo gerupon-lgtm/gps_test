@@ -376,6 +376,20 @@ function previewFacilities(type, config, changes) {
     .map((change) => masterRowToFacility(type, change.data, config.idField));
 }
 
+function importChangeToResponse(change) {
+  const duplicate = change.type === "update";
+  return {
+    row: change.row,
+    id: change.id,
+    type: change.type,
+    duplicate,
+    import: change.import,
+    warnings: change.warnings || [],
+    changedFields: change.changedFields,
+    data: change.data,
+  };
+}
+
 app.get("/api/health", async () => ({ ok: true, time: new Date().toISOString() }));
 
 app.post("/api/admin/login", async (req, reply) => {
@@ -675,6 +689,7 @@ app.post("/api/admin/masters/:type/import/preview", requireAdmin(async (req, rep
   });
   return {
     previewId,
+    fields: config.fields,
     insertCount: preview.changes.filter((c) => c.type === "insert").length,
     updateCount: preview.changes.filter((c) => c.type === "update" && c.changedFields.length > 0).length,
     noChangeCount: preview.changes.filter((c) => c.type === "update" && c.changedFields.length === 0).length,
@@ -688,19 +703,23 @@ app.post("/api/admin/masters/:type/import/preview", requireAdmin(async (req, rep
       b: warning.b,
     })),
     missingIds: preview.missingIds.slice(0, 100),
-    changes: preview.changes.slice(0, 100).map((c) => ({
-      row: c.row,
-      id: c.id,
-      type: c.type,
-      changedFields: c.changedFields,
-    })),
+    changes: adminCsv.attachImportWarnings(req.params.type, preview.changes, proximityWarnings)
+      .slice(0, 100)
+      .map((c) => importChangeToResponse(c)),
   };
 }));
 
 app.post("/api/admin/masters/:type/import/apply", requireAdmin(async (req, reply) => {
   const config = MASTER_CONFIG[req.params.type];
   if (!config) return reply.code(404).send({ error: "マスタ種別が見つかりません" });
-  const schema = z.object({ previewId: z.string() });
+  const schema = z.object({
+    previewId: z.string(),
+    selectedChanges: z.array(z.object({
+      id: z.string(),
+      import: z.boolean(),
+      data: z.record(z.any()).optional(),
+    })).optional(),
+  });
   const p = schema.safeParse(req.body);
   if (!p.success) return reply.code(400).send({ error: "入力が不正です" });
   const preview = importPreviews.get(p.data.previewId);
@@ -711,7 +730,11 @@ app.post("/api/admin/masters/:type/import/apply", requireAdmin(async (req, reply
     importPreviews.delete(p.data.previewId);
     return reply.code(410).send({ error: "プレビューの期限が切れました。再度プレビューしてください" });
   }
-  const targets = preview.changes.filter((c) => c.type === "insert" || c.changedFields.length > 0);
+  const selected = adminCsv.prepareSelectedImportChanges(config, preview.changes, p.data.selectedChanges);
+  if (selected.errors.length > 0) {
+    return reply.code(400).send({ error: selected.errors.map((e) => e.error).join(", "), errors: selected.errors });
+  }
+  const targets = selected.changes.filter((c) => c.type === "insert" || c.changedFields.length > 0);
   const beforeRows = await prisma[config.model].findMany({
     where: { [config.idField]: { in: targets.map((c) => c.id) } },
   });

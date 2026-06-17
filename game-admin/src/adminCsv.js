@@ -1,3 +1,6 @@
+const DUPLICATE_DEFAULT_SKIP_TYPES = new Set(["enemies", "items", "postalAreas"]);
+const FACILITY_MASTER_TYPES = new Set(["spots", "inns", "shops"]);
+
 function normalizeMasterValue(type, value) {
   if (type === "boolean") return value === true || value === "true" || value === "1" || value === 1;
   if (type === "int") {
@@ -135,6 +138,9 @@ function diffMasterRows(config, rows, existingRows) {
       continue;
     }
     seen.add(id);
+    for (const [field, value] of Object.entries(config.defaults || {})) {
+      if (!Object.prototype.hasOwnProperty.call(raw, field)) raw[field] = value;
+    }
     let data;
     try {
       data = buildMasterData(config, raw, true);
@@ -145,9 +151,6 @@ function diffMasterRows(config, rows, existingRows) {
     const before = existingMap.get(id) || null;
     const type = before ? "update" : "insert";
     if (!before) {
-      for (const [field, value] of Object.entries(config.defaults || {})) {
-        if (!Object.prototype.hasOwnProperty.call(data, field)) data[field] = value;
-      }
       const missing = Object.entries(config.fields)
         .filter(([field, fieldType]) =>
           fieldType !== "nullableString" &&
@@ -190,6 +193,62 @@ function prepareMasterInsert(config, raw, existingRows) {
     change,
     errors: preview.errors,
   };
+}
+
+function isImportSelectedByDefault(masterType, change) {
+  return !(change && change.type === "update" && DUPLICATE_DEFAULT_SKIP_TYPES.has(masterType));
+}
+
+function attachImportWarnings(masterType, changes, warnings) {
+  const warningsById = new Map();
+  if (FACILITY_MASTER_TYPES.has(masterType)) {
+    for (const warning of warnings || []) {
+      for (const side of [warning.a, warning.b]) {
+        if (!side || !side.id) continue;
+        if (!warningsById.has(String(side.id))) warningsById.set(String(side.id), []);
+        warningsById.get(String(side.id)).push(warning);
+      }
+    }
+  }
+  return changes.map((change) => {
+    const rowWarnings = warningsById.get(String(change.id)) || [];
+    return {
+      ...change,
+      warnings: rowWarnings,
+      import: rowWarnings.length > 0 ? false : isImportSelectedByDefault(masterType, change),
+    };
+  });
+}
+
+function prepareSelectedImportChanges(config, previewChanges, selectedChanges) {
+  if (!Array.isArray(selectedChanges)) {
+    return { changes: previewChanges, errors: [] };
+  }
+  const selectedMap = new Map(selectedChanges.map((change) => [String(change.id || ""), change]));
+  const changes = [];
+  const errors = [];
+  for (const previewChange of previewChanges) {
+    const selected = selectedMap.get(String(previewChange.id));
+    if (!selected || selected.import === false) continue;
+    const mergedData = {
+      ...previewChange.data,
+      ...(selected.data || {}),
+      [config.idField]: previewChange.id,
+    };
+    let data;
+    try {
+      data = buildMasterData(config, mergedData, true);
+    } catch (e) {
+      errors.push({ id: previewChange.id, error: "数値項目が不正です" });
+      continue;
+    }
+    changes.push({
+      ...previewChange,
+      changedFields: Object.keys(data).filter((field) => field !== config.idField),
+      data,
+    });
+  }
+  return { changes, errors };
 }
 
 function findProximityWarnings({ thresholdM, existingFacilities, importedFacilities }) {
@@ -249,12 +308,15 @@ function escapeRegExp(value) {
 }
 
 module.exports = {
+  attachImportWarnings,
   buildMasterData,
   diffMasterRows,
   findExistingProximityWarnings,
   findProximityWarnings,
+  isImportSelectedByDefault,
   parseCsv,
   prepareMasterInsert,
+  prepareSelectedImportChanges,
   rowsToCsvObjects,
   toCsv,
 };

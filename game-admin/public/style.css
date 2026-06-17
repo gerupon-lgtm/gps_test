@@ -51,6 +51,10 @@ button:hover { filter: brightness(1.08); }
 .master-form .check-row { display: flex; align-items: center; gap: 8px; }
 .master-form .check-row input { width: auto; margin: 0; }
 .import-preview { margin-top: 16px; padding-top: 12px; border-top: 1px solid #334155; }
+.import-change { display: grid; gap: 8px; }
+.import-change .master-form { margin-top: 4px; }
+.import-change .check-row:first-child { justify-content: flex-start; }
+.inline-warning { border-radius: 8px; padding: 7px 8px; }
 .danger { color: #fecaca; background: #7f1d1d !important; }
 .warning { color: #fef3c7; background: #78350f !important; }
 @media (max-width: 760px) {

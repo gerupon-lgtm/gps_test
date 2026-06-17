@@ -1,6 +1,12 @@
 import unittest
 
-from output_format import build_master_row, get_output_config, parse_gsi_info
+from output_format import (
+    POSTAL_AREA_HEADERS,
+    build_master_row,
+    build_postal_area_rows,
+    get_output_config,
+    parse_gsi_info,
+)
 
 
 class OutputFormatTest(unittest.TestCase):
@@ -54,6 +60,24 @@ class OutputFormatTest(unittest.TestCase):
     def test_parse_gsi_info_handles_blank_values(self):
         self.assertEqual(parse_gsi_info(":"), ("", "", ""))
         self.assertEqual(parse_gsi_info(""), ("", "", ""))
+
+    def test_postal_area_rows_are_unique_and_admin_import_ready(self):
+        rows = build_postal_area_rows([
+            "24344:Toyoda",
+            "24344:Toyoda",
+            "24344:Minami",
+            ":",
+            "",
+        ])
+
+        self.assertEqual(
+            POSTAL_AREA_HEADERS,
+            ["areaKey", "postalCode", "muniCd", "areaName", "regionName", "active"],
+        )
+        self.assertEqual(rows, [
+            ["24344:Toyoda", "", "24344", "Toyoda", "Toyoda", "true"],
+            ["24344:Minami", "", "24344", "Minami", "Minami", "true"],
+        ])
 
 
 if __name__ == "__main__":
