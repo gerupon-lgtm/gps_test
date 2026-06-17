@@ -74,6 +74,16 @@ const MASTER_FIELDS = {
 
 const $ = (id) => document.getElementById(id);
 
+function setOptionalHtml(id, value) {
+  const el = $(id);
+  if (el) el.innerHTML = value;
+}
+
+function setOptionalText(id, value) {
+  const el = $(id);
+  if (el) el.textContent = value;
+}
+
 async function api(path, method = "GET", body) {
   const opt = { method, credentials: "include", headers: {} };
   if (body !== undefined) {
@@ -121,9 +131,9 @@ function resetAdminScreenState() {
 
   $("player-list").innerHTML = "";
   $("master-list").innerHTML = "";
-  $("player-detail").textContent = "プレイヤーを選択してください。";
-  $("master-detail").textContent = "マスタを選択してください。";
-  $("spot-state-list").innerHTML = "";
+  setOptionalText("player-detail", "プレイヤーを選択してください。");
+  setOptionalText("master-detail", "マスタを選択してください。");
+  setOptionalHtml("spot-state-list", "");
   $("import-preview").classList.add("hidden");
   $("import-summary").textContent = "";
   $("import-errors").innerHTML = "";
