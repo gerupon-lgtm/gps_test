@@ -218,30 +218,35 @@ async function checkExistingProximity() {
 }
 
 function renderImportPreview(preview) {
+  const type = $("master-type").value;
+  const fields = preview.fields || MASTER_FIELDS[type] || {};
+  const missingEditableData = preview.changes.some((change) => !change.data);
   $("import-preview").classList.remove("hidden");
   $("import-summary").textContent =
     `追加 ${preview.insertCount} / 更新 ${preview.updateCount} / 変更なし ${preview.noChangeCount} / CSV未掲載 ${preview.missingCount} / エラー ${preview.errors.length}`;
   $("import-errors").innerHTML = preview.errors.length
     ? preview.errors.map((e) => `<li class="danger">行${e.row || "-"} ${esc(e.id || "")}: ${esc(e.error)}</li>`).join("")
-    : "<li>エラーなし</li>";
+    : (missingEditableData ? "<li class=\"danger\">編集可能なプレビュー情報が不足しています。管理APIを更新してから再度プレビューしてください。</li>" : "<li>エラーなし</li>");
   $("import-warnings").innerHTML = preview.warnings && preview.warnings.length
     ? preview.warnings.map((w) => `<li class="warning">${esc(w.message)}</li>`).join("")
     : "<li>警告なし</li>";
   $("import-changes").innerHTML = preview.changes.length
-    ? preview.changes.map((c, index) => renderImportChange(preview.fields, c, index)).join("")
+    ? preview.changes.map((c, index) => renderImportChange(fields, c, index)).join("")
     : "<li>変更なし</li>";
-  $("btn-master-apply").disabled = preview.errors.length > 0;
+  $("btn-master-apply").disabled = preview.errors.length > 0 || missingEditableData;
 }
 
 function renderImportChange(fields, change, index) {
   const duplicateLabel = change.duplicate ? " / 重複" : "";
   const checked = change.import === false ? "" : " checked";
+  const data = change.data || {};
+  const changedFields = change.changedFields || [];
   const warnings = (change.warnings || []).map((warning) => `<div class="warning inline-warning">${esc(warning.message)}</div>`).join("");
   return `<li class="import-change" data-import-index="${index}">
     <label class="check-row"><input class="import-include" type="checkbox"${checked}> 取込む</label>
-    <div><strong>${esc(change.type)}: ${esc(change.id)}</strong><span class="muted">${duplicateLabel} / ${esc(change.changedFields.join(", ") || "変更なし")}</span></div>
+    <div><strong>${esc(change.type)}: ${esc(change.id)}</strong><span class="muted">${duplicateLabel} / ${esc(changedFields.join(", ") || "変更なし")}</span></div>
     ${warnings}
-    <div class="master-form">${Object.entries(fields).map(([field, fieldType]) => renderImportField(field, fieldType, change.data[field])).join("")}</div>
+    <div class="master-form">${Object.entries(fields).map(([field, fieldType]) => renderImportField(field, fieldType, data[field])).join("")}</div>
   </li>`;
 }
 

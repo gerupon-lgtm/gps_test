@@ -14,3 +14,11 @@ test("loads admin scripts with cache-busting versions", () => {
   assert.match(html, new RegExp(`<script src="\\.\\/adminTime\\.js\\?v=${ADMIN_APP_VERSION.assetsVersion}"><\\/script>`));
   assert.match(html, new RegExp(`<script src="\\.\\/app\\.js\\?v=${ADMIN_APP_VERSION.assetsVersion}"><\\/script>`));
 });
+
+test("import preview renderer tolerates missing legacy preview metadata", () => {
+  const appJs = fs.readFileSync(path.join(__dirname, "..", "public", "app.js"), "utf8");
+
+  assert.match(appJs, /preview\.fields \|\| MASTER_FIELDS/);
+  assert.match(appJs, /change\.data \|\| \{\}/);
+  assert.match(appJs, /preview\.changes\.some\(\(change\) => !change\.data\)/);
+});
