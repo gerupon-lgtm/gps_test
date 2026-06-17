@@ -142,6 +142,11 @@ PICKUP_COOLDOWN_MIN=5     # 散策拾いのクールダウン(分)
 ANTIDOTE_BOOST=2         # 毒中の antidote 抽選倍率
 SELL_RATE=0.5            # 道具屋の売値(basePrice比)
 BATTLE_USE_RANDOM=false   # 戦闘ダメージに乱数を使うか
+MARKET_FEE_FIXED=5        # マーケット成約手数料(固定G)
+MARKET_FEE_RATE=0         # マーケット成約手数料(販売価格に対する割合。初期値0%)
+MARKET_CANCEL_FEE_FIXED=5 # 出品取消手数料(固定G)
+MARKET_CANCEL_FEE_RATE=0  # 出品取消手数料(販売価格に対する割合。初期値0%)
+MARKET_RESPECT_SELLABLE=false # trueならItemMaster.sellable=falseをマーケット出品不可にする
 ```
 
 ---
@@ -222,7 +227,7 @@ DOWNED_MIN=1              PICKUP_BASE_RATE=0.03    PICKUP_COOLDOWN_MIN=5
 SELL_RATE=0.5            INN_COST_PER_LEVEL=5
 BATTLE_USE_RANDOM=false   BATTLE_RANDOM_RANGE=0.2
 ```
-クライアント側(`js/config.js`): `CHECKIN_DISTANCE_METERS=10`、`LOCATION_REPORT_INTERVAL_MS=30000`。
+クライアント側(`js/config.js`): `CHECKIN_DISTANCE_METERS=10`、`LOCATION_REPORT_INTERVAL_MS=30000`、`BATTLE_RETURN_DELAY_MS=5000`、`MARKET_POLL_INTERVAL_MS=30000`、`MARKET_FEE_FIXED=5`、`MARKET_FEE_RATE=0`、`MARKET_CANCEL_FEE_FIXED=5`、`MARKET_CANCEL_FEE_RATE=0`。
 
 ### 9.10 データ(マスタ)
 - `enemies.csv`: 10体。`exp_base/gold_base/drop_item_id/drop_rate/poison_chance` 設定済み。

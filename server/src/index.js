@@ -7,6 +7,7 @@ const cookie = require("@fastify/cookie");
 const { z } = require("zod");
 const { prisma } = require("./db");
 const { hashPassword, verifyPassword } = require("./hash");
+const { calcMarketFee, calcMarketSettlement, normalizePayerSide } = require("./marketFees");
 
 const PORT = Number(process.env.PORT || 3000);
 const INVITE_CODE = process.env.INVITE_CODE || "friends-only";
@@ -31,6 +32,12 @@ const PICKUP_COOLDOWN_MIN = Number(process.env.PICKUP_COOLDOWN_MIN || 5);  // �
 const SELL_RATE = Number(process.env.SELL_RATE || 0.5);                    // 道具屋の売値(basePrice比)
 const INN_COST_PER_LEVEL = Number(process.env.INN_COST_PER_LEVEL || 5);    // 宿泊費 = level × これ
 const REPEAT_REWARD_FACTOR = Number(process.env.REPEAT_REWARD_FACTOR || 0.3); // 撃破済み再戦の報酬倍率(EXP/ドロップ率)
+
+const MARKET_FEE_FIXED = Number(process.env.MARKET_FEE_FIXED || 5);
+const MARKET_FEE_RATE = Number(process.env.MARKET_FEE_RATE || 0);
+const MARKET_CANCEL_FEE_FIXED = Number(process.env.MARKET_CANCEL_FEE_FIXED || 5);
+const MARKET_CANCEL_FEE_RATE = Number(process.env.MARKET_CANCEL_FEE_RATE || 0);
+const MARKET_RESPECT_SELLABLE = String(process.env.MARKET_RESPECT_SELLABLE || "false").toLowerCase() === "true";
 
 const app = Fastify({ logger: true });
 app.register(cookie, { secret: process.env.SESSION_SECRET || "dev-secret" });
@@ -847,31 +854,79 @@ app.get("/api/inventory", requireAuth(async (req) => {
 }));
 
 // ---- マーケット ----
+function marketFeeOptions() {
+  return { fixed: MARKET_FEE_FIXED, rate: MARKET_FEE_RATE };
+}
+
+function marketCancelFeeOptions() {
+  return { fixed: MARKET_CANCEL_FEE_FIXED, rate: MARKET_CANCEL_FEE_RATE };
+}
+
+function mapListing(l) {
+  const fallback = calcMarketSettlement(l.price, l.feePayerSide || "seller", marketFeeOptions());
+  return {
+    id: l.id,
+    itemId: l.itemId,
+    itemName: l.item.name,
+    rarity: l.item.rarity,
+    qty: l.qty,
+    price: l.price,
+    feePayerSide: l.feePayerSide || "seller",
+    feeAmount: l.feeAmount || fallback.fee,
+    buyerPays: l.buyerPays || fallback.buyerPays,
+    sellerReceives: l.sellerReceives || fallback.sellerReceives,
+    seller: l.seller.name,
+    sellerId: l.sellerId,
+    createdAt: l.createdAt,
+  };
+}
+
+async function addPlayerItem(tx, playerId, itemId, qty) {
+  const existing = await tx.playerItem.findUnique({ where: { playerId_itemId: { playerId, itemId } } });
+  if (existing) return tx.playerItem.update({ where: { id: existing.id }, data: { qty: existing.qty + qty } });
+  return tx.playerItem.create({ data: { playerId, itemId, qty } });
+}
+
 app.get("/api/market", async () => {
   const listings = await prisma.marketListing.findMany({
     where: { status: "open" },
     include: { item: true, seller: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
   });
-  return listings.map((l) => ({
-    id: l.id, itemId: l.itemId, itemName: l.item.name,
-    qty: l.qty, price: l.price, seller: l.seller.name, createdAt: l.createdAt,
-  }));
+  return listings.map(mapListing);
 });
+
+app.get("/api/market/mine", requireAuth(async (req) => {
+  const listings = await prisma.marketListing.findMany({
+    where: { status: "open", sellerId: req.player.id },
+    include: { item: true, seller: { select: { name: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+  return listings.map(mapListing);
+}));
 
 // 出品(在庫をエスクローへ移す)
 app.post("/api/market/list", requireAuth(async (req, reply) => {
   const schema = z.object({
     itemId: z.string(),
     qty: z.number().int().positive(),
-    price: z.number().int().nonnegative(),
+    price: z.number().int().positive(),
+    feePayerSide: z.enum(["seller", "buyer"]).optional(),
   });
   const p = schema.safeParse(req.body);
   if (!p.success) return reply.code(400).send({ error: "入力が不正です" });
   const { itemId, qty, price } = p.data;
+  const feePayerSide = normalizePayerSide(p.data.feePayerSide);
+  const settlement = calcMarketSettlement(price, feePayerSide, marketFeeOptions());
+  if (feePayerSide === "seller" && settlement.fee > price) {
+    return reply.code(400).send({ error: "売り手負担の手数料が販売価格を超えています" });
+  }
 
   try {
     const listing = await prisma.$transaction(async (tx) => {
+      const item = await tx.itemMaster.findUnique({ where: { itemId } });
+      if (!item || !item.active) throw new Error("ITEM_NOT_FOUND");
+      if (MARKET_RESPECT_SELLABLE && !item.sellable) throw new Error("NOT_SELLABLE");
       const inv = await tx.playerItem.findUnique({
         where: { playerId_itemId: { playerId: req.player.id, itemId } },
       });
@@ -882,11 +937,23 @@ app.post("/api/market/list", requireAuth(async (req, reply) => {
         await tx.playerItem.update({ where: { id: inv.id }, data: { qty: inv.qty - qty } });
       }
       return tx.marketListing.create({
-        data: { sellerId: req.player.id, itemId, qty, price, status: "open" },
+        data: {
+          sellerId: req.player.id,
+          itemId,
+          qty,
+          price,
+          feePayerSide,
+          feeAmount: settlement.fee,
+          buyerPays: settlement.buyerPays,
+          sellerReceives: settlement.sellerReceives,
+          status: "open",
+        },
       });
     });
-    return { ok: true, listingId: listing.id };
+    return { ok: true, listingId: listing.id, ...settlement };
   } catch (e) {
+    if (e.message === "ITEM_NOT_FOUND") return reply.code(404).send({ error: "アイテムが見つかりません" });
+    if (e.message === "NOT_SELLABLE") return reply.code(400).send({ error: "このアイテムは出品できません" });
     if (e.message === "INSUFFICIENT_ITEM") return reply.code(400).send({ error: "在庫が足りません" });
     throw e;
   }
@@ -903,35 +970,43 @@ app.post("/api/market/buy", requireAuth(async (req, reply) => {
   try {
     const result = await prisma.$transaction(async (tx) => {
       // 行ロック(同時購入を直列化)
-      const rows = await tx.$queryRaw`SELECT id, "sellerId", "itemId", qty, price, status
+      const rows = await tx.$queryRaw`SELECT id, "sellerId", "itemId", qty, price, status, "feePayerSide", "feeAmount", "buyerPays", "sellerReceives"
         FROM "MarketListing" WHERE id = ${listingId} FOR UPDATE`;
       const listing = rows[0];
       if (!listing) throw new Error("NOT_FOUND");
       if (listing.status !== "open") throw new Error("ALREADY_SOLD");
       if (listing.sellerId === buyerId) throw new Error("SELF_BUY");
+      const fallback = calcMarketSettlement(listing.price, listing.feePayerSide || "seller", marketFeeOptions());
+      const fee = listing.feeAmount || fallback.fee;
+      const buyerPays = listing.buyerPays || fallback.buyerPays;
+      const sellerReceives = listing.sellerReceives || fallback.sellerReceives;
 
       const buyer = await tx.player.findUnique({ where: { id: buyerId } });
-      if (buyer.gold < listing.price) throw new Error("INSUFFICIENT_GOLD");
+      if (buyer.gold < buyerPays) throw new Error("INSUFFICIENT_GOLD");
 
       // 決済
-      await tx.player.update({ where: { id: buyerId }, data: { gold: { decrement: listing.price } } });
-      await tx.player.update({ where: { id: listing.sellerId }, data: { gold: { increment: listing.price } } });
+      await tx.player.update({ where: { id: buyerId }, data: { gold: { decrement: buyerPays } } });
+      await tx.player.update({ where: { id: listing.sellerId }, data: { gold: { increment: sellerReceives } } });
 
       // 受け渡し(買い手の在庫へ加算)
-      const existing = await tx.playerItem.findUnique({
-        where: { playerId_itemId: { playerId: buyerId, itemId: listing.itemId } },
-      });
-      if (existing) {
-        await tx.playerItem.update({ where: { id: existing.id }, data: { qty: existing.qty + listing.qty } });
-      } else {
-        await tx.playerItem.create({ data: { playerId: buyerId, itemId: listing.itemId, qty: listing.qty } });
-      }
+      await addPlayerItem(tx, buyerId, listing.itemId, listing.qty);
 
       await tx.marketListing.update({
         where: { id: listingId },
         data: { status: "sold", buyerId, soldAt: new Date() },
       });
-      return { itemId: listing.itemId, qty: listing.qty, price: listing.price };
+      if (fee > 0) {
+        await tx.marketFeeLedger.create({
+          data: {
+            listingId,
+            playerId: listing.feePayerSide === "buyer" ? buyerId : listing.sellerId,
+            reason: "buy",
+            payerSide: listing.feePayerSide || "seller",
+            amount: fee,
+          },
+        });
+      }
+      return { itemId: listing.itemId, qty: listing.qty, price: listing.price, buyerPays, sellerReceives, fee };
     });
     return { ok: true, ...result };
   } catch (e) {
@@ -955,26 +1030,31 @@ app.post("/api/market/cancel", requireAuth(async (req, reply) => {
   const { listingId } = p.data;
 
   try {
-    await prisma.$transaction(async (tx) => {
-      const rows = await tx.$queryRaw`SELECT id, "sellerId", "itemId", qty, status
+    const result = await prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw`SELECT id, "sellerId", "itemId", qty, price, status
         FROM "MarketListing" WHERE id = ${listingId} FOR UPDATE`;
       const listing = rows[0];
       if (!listing) throw new Error("NOT_FOUND");
       if (listing.sellerId !== req.player.id) throw new Error("NOT_OWNER");
       if (listing.status !== "open") throw new Error("NOT_OPEN");
-
-      const existing = await tx.playerItem.findUnique({
-        where: { playerId_itemId: { playerId: listing.sellerId, itemId: listing.itemId } },
-      });
-      if (existing) {
-        await tx.playerItem.update({ where: { id: existing.id }, data: { qty: existing.qty + listing.qty } });
-      } else {
-        await tx.playerItem.create({ data: { playerId: listing.sellerId, itemId: listing.itemId, qty: listing.qty } });
+      const fee = calcMarketFee(listing.price, marketCancelFeeOptions());
+      const seller = await tx.player.findUnique({ where: { id: listing.sellerId } });
+      if (seller.gold < fee) throw new Error("INSUFFICIENT_GOLD");
+      if (fee > 0) {
+        await tx.player.update({ where: { id: listing.sellerId }, data: { gold: { decrement: fee } } });
+        await tx.marketFeeLedger.create({
+          data: { listingId, playerId: listing.sellerId, reason: "cancel", payerSide: "seller", amount: fee },
+        });
       }
+
+      await addPlayerItem(tx, listing.sellerId, listing.itemId, listing.qty);
       await tx.marketListing.update({ where: { id: listingId }, data: { status: "cancelled" } });
+      return { fee };
     });
-    return { ok: true };
+    const me = await prisma.player.findUnique({ where: { id: req.player.id } });
+    return { ok: true, fee: result.fee, gold: me.gold };
   } catch (e) {
+    if (e.message === "INSUFFICIENT_GOLD") return reply.code(400).send({ error: "取消手数料を払う所持金が足りません" });
     const map = {
       NOT_FOUND: [404, "出品が見つかりません"],
       NOT_OWNER: [403, "自分の出品ではありません"],

@@ -59,6 +59,7 @@ model Player {
   items         PlayerItem[]
   spotStates    PlayerSpotState[]
   listings      MarketListing[] @relation("seller")
+  marketFees    MarketFeeLedger[]
   battleLogs    BattleLog[]
   battleSession BattleSession?
 }
@@ -156,10 +157,28 @@ model MarketListing {
   item      ItemMaster @relation(fields: [itemId], references: [itemId])
   qty       Int
   price     Int
+  feePayerSide String @default("seller") // seller / buyer
+  feeAmount Int @default(0)
+  buyerPays Int @default(0)
+  sellerReceives Int @default(0)
   status    String   @default("open") // open / sold / cancelled
   buyerId   String?
   createdAt DateTime @default(now())
   soldAt    DateTime?
+
+  fees MarketFeeLedger[]
+}
+
+model MarketFeeLedger {
+  id        String   @id @default(cuid())
+  listingId String?
+  listing   MarketListing? @relation(fields: [listingId], references: [id])
+  playerId  String
+  player    Player   @relation(fields: [playerId], references: [id])
+  reason    String // buy / cancel
+  payerSide String // seller / buyer
+  amount    Int
+  createdAt DateTime @default(now())
 }
 
 model BattleLog {

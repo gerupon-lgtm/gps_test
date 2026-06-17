@@ -305,6 +305,7 @@ POST /api/battle/resolve
 POST /api/market/list (出品)
   TX {
     player_items から (itemId, qty) を減算(不足ならエラー)
+    販売価格・手数料負担(seller/buyer)から buyerPays / sellerReceives / feeAmount を確定
     MarketListing を status=open で作成(=エスクロー、手元から消える)
   }
 
@@ -312,21 +313,33 @@ POST /api/market/buy (購入)
   TX {
     listing を SELECT ... FOR UPDATE で取得・ロック
     listing.status = open を確認(売り切れ/取消なら中断)
-    buyer.gold >= listing.price を確認
-    buyer.gold  -= price
-    seller.gold += price
+    buyer.gold >= listing.buyerPays を確認
+    buyer.gold  -= buyerPays
+    seller.gold += sellerReceives
     buyer の player_items に (itemId, qty) を加算(無ければ作成)
     listing.status = sold, buyerId, soldAt を更新
-    (任意) CurrencyLedger に双方の増減を記録
+    feeAmount > 0 の場合は MarketFeeLedger に手数料を記録
   }  // 途中失敗は全ロールバック
 
 POST /api/market/cancel (取消)
-  TX { listing(open)を cancelled に → 在庫を出品者へ戻す }
+  TX {
+    listing(open)を確認
+    出品者から取消手数料を徴収
+    MarketFeeLedger に手数料を記録
+    在庫を出品者へ戻す
+    listing.status=cancelled
+  }
 ```
 
 - **冪等キー**:buy リクエストに一意キーを持たせ、再送(電波不安定での二度押し)で二重決済しないようにする。
 - **行ロック**:同一listingへの同時購入を直列化。
 - すべて単一トランザクション。これが「整合性をDBで守る」核。
+- 手数料の初期設定は `MARKET_FEE_FIXED=5`, `MARKET_FEE_RATE=0`。つまり販売価格への割合加算は初期値0%で、固定5Gのみ。
+- 取消手数料も初期値は固定5G+0%。取消時は常に売り手負担。
+- HUDメニューの「まーけっと」から `かう` / `うる` / `とりけし` を操作する。出品価格の初期値と参考表示は道具屋の買取価格(`floor(basePrice * SELL_RATE)`)。
+- 出品時の手数料負担は売り手/買い手を選択できる。売り手負担なら買い手支払総額は販売価格、買い手負担なら販売価格+手数料。
+- 現状は全アイテムを出品可能にしている。将来の売れない属性に備え、`MARKET_RESPECT_SELLABLE=true` にすると `ItemMaster.sellable=false` をマーケット出品不可として扱う。
+- 探索画面を開いているログイン中プレイヤーには、新規出品を低優先のポーリングでトースト通知する。
 
 ### 7.4 宿屋・アイテム使用
 

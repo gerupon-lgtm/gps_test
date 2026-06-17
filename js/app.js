@@ -14,6 +14,9 @@ const App = {
   player: null,    // /api/me のプレイヤー状態(HP/gold等)
   waitTimer: null, // 待機(敗北/勝利)カウントダウン用
   downedTimer: null,
+  battleReturnTimer: null,
+  marketPollTimer: null,
+  marketSeenListings: null,
   exploreStartPosition: null,
   exploreResult: null,
 };
@@ -66,6 +69,7 @@ async function init() {
   refreshDefeatedSpots();
   updateDownedOverlay();
   resumeBattleIfAny();
+  startMarketPolling();
 }
 
 // =====================================================
@@ -83,11 +87,7 @@ function bindEvents() {
   $("btn-use-item").addEventListener("click", onUseItemInBattle);
   $("battle-item-list").addEventListener("click", onBattleItemClick);
   $("btn-battle-back").addEventListener("click", () => {
-    App.currentBattle = null;
-    App.currentSpot = null;
-    showScreen("explore");
-    refreshMapSize();
-    updateExplore(App.lastPosition);
+    returnToExploreFromBattle();
   });
   $("btn-start-battle").addEventListener("click", onStartBattle);
   $("items-list").addEventListener("click", onItemListClick);
@@ -582,6 +582,31 @@ function onBattleItemClick(e) {
   doBattleAction("useItem", btn.dataset.item);
 }
 
+function clearBattleReturnTimer() {
+  if (App.battleReturnTimer) {
+    clearTimeout(App.battleReturnTimer);
+    App.battleReturnTimer = null;
+  }
+}
+
+function returnToExploreFromBattle() {
+  clearBattleReturnTimer();
+  App.currentBattle = null;
+  App.currentSpot = null;
+  showScreen("explore");
+  refreshMapSize();
+  updateExplore(App.lastPosition);
+}
+
+function scheduleBattleAutoReturn() {
+  clearBattleReturnTimer();
+  const delay = Math.max(0, Number(CONFIG.BATTLE_RETURN_DELAY_MS || 5000));
+  if (!delay) return;
+  App.battleReturnTimer = setTimeout(() => {
+    if (App.currentBattle && App.currentBattle.finished) returnToExploreFromBattle();
+  }, delay);
+}
+
 function renderBattle() {
   const b = App.currentBattle;
   $("battle-enemy-name").textContent = b.enemyName;
@@ -616,7 +641,9 @@ function renderBattle() {
     $("battle-result").className = "battle-result " + (b.result === "win" ? "win" : "lose");
     show("battle-result");
     show("btn-battle-back");
+    if (!App.battleReturnTimer) scheduleBattleAutoReturn();
   } else {
+    clearBattleReturnTimer();
     $("btn-attack").disabled = b.busy;
     $("btn-use-item").disabled = b.busy;
     show("btn-use-item");
@@ -778,6 +805,30 @@ function showToast(msg, opts) {
   if (_toastTimer) clearTimeout(_toastTimer);
   _toastTimer = setTimeout(() => el.classList.add("hidden"), options.duration || 3500);
 }
+
+async function pollMarketListings() {
+  let listings = [];
+  try { listings = await API.market(); } catch (e) { return; }
+  const openListings = (listings || []).filter((l) => !App.player || l.sellerId !== App.player.id);
+  if (!App.marketSeenListings) {
+    App.marketSeenListings = new Set(openListings.map((l) => l.id));
+    return;
+  }
+  const fresh = openListings.filter((l) => !App.marketSeenListings.has(l.id));
+  openListings.forEach((l) => App.marketSeenListings.add(l.id));
+  if (!fresh.length || $("screen-explore").classList.contains("hidden")) return;
+  const first = fresh[0];
+  const more = fresh.length > 1 ? " ほか" + (fresh.length - 1) + "件" : "";
+  showToast("まーけっと: " + first.itemName + " が出品されました" + more, { duration: 4500 });
+}
+
+function startMarketPolling() {
+  if (App.marketPollTimer) clearInterval(App.marketPollTimer);
+  pollMarketListings();
+  const interval = Math.max(10000, Number(CONFIG.MARKET_POLL_INTERVAL_MS || 30000));
+  App.marketPollTimer = setInterval(pollMarketListings, interval);
+}
+
 function onPickup(pickup) {
   showToast("✨ " + pickup.name + " を拾った!");
   renderItems();
@@ -949,6 +1000,7 @@ function renderMenuRoot() {
   $("menu-content").innerHTML =
     '<div class="dq-title">コマンド</div>' +
     '<ul class="dq-list">' +
+      '<li data-cmd="market">まーけっと</li>' +
       '<li data-cmd="item">どうぐ</li>' +
       '<li data-cmd="status">つよさ</li>' +
       '<li data-cmd="friends">なかま</li>' +
@@ -974,6 +1026,186 @@ async function renderItemMenu() {
   $("menu-content").innerHTML =
     '<div class="dq-title">どうぐ</div><ul class="dq-list">' + rows + '</ul>' +
     '<ul class="dq-list"><li data-cmd="back">もどる</li></ul>';
+}
+
+function renderMarketRoot() {
+  $("menu-content").innerHTML =
+    '<div class="dq-title">まーけっと</div>' +
+    '<ul class="dq-list">' +
+      '<li data-cmd="marketBuy">かう</li>' +
+      '<li data-cmd="marketSell">うる</li>' +
+      '<li data-cmd="marketCancel">とりけし</li>' +
+      '<li data-cmd="back">もどる</li>' +
+    '</ul>';
+}
+
+function clientMarketFee(price) {
+  return Math.max(0, Number(CONFIG.MARKET_FEE_FIXED || 0)) + Math.ceil(Math.max(0, Number(price) || 0) * Math.max(0, Number(CONFIG.MARKET_FEE_RATE || 0)));
+}
+
+function clientMarketCancelFee(price) {
+  return Math.max(0, Number(CONFIG.MARKET_CANCEL_FEE_FIXED || 0)) + Math.ceil(Math.max(0, Number(price) || 0) * Math.max(0, Number(CONFIG.MARKET_CANCEL_FEE_RATE || 0)));
+}
+
+function clientMarketSettlement(price, payerSide) {
+  const p = Math.max(0, Number(price) || 0);
+  const fee = clientMarketFee(p);
+  if (payerSide === "buyer") return { fee, buyerPays: p + fee, sellerReceives: p };
+  return { fee, buyerPays: p, sellerReceives: Math.max(0, p - fee) };
+}
+
+async function renderMarketSell() {
+  let inv = [];
+  try { inv = await API.inventory(); } catch (e) { inv = []; }
+  const rows = (inv || []).filter((it) => it.qty > 0).map((it) =>
+    '<li data-market-sell="' + _esc(it.itemId) + '">' + _esc(it.name) +
+    ' <span class="dq-qty">x' + it.qty + '</span> <span class="dq-eff">どうぐや ' + (it.sellPrice || 0) + 'G</span></li>'
+  ).join("");
+  $("menu-content").innerHTML =
+    '<div class="dq-title">うるもの</div><ul class="dq-list">' + (rows || '<li class="dq-empty">うれるものがない</li>') + '</ul>' +
+    '<ul class="dq-list"><li data-cmd="market">もどる</li></ul>';
+}
+
+async function renderMarketSellForm(itemId) {
+  let inv = [];
+  try { inv = await API.inventory(); } catch (e) { inv = []; }
+  const item = (inv || []).find((it) => it.itemId === itemId);
+  if (!item) { $("menu-msg").textContent = "そのどうぐはありません"; return renderMarketSell(); }
+  const price = Math.max(1, Number(item.sellPrice || 1));
+  const s = clientMarketSettlement(price, "seller");
+  App._pendingMarket = { kind: "sell", itemId: item.itemId, itemName: item.name, qty: 1, shopSellPrice: item.sellPrice || 0 };
+  $("menu-content").innerHTML =
+    '<div class="dq-title">いくらで だしますか？</div>' +
+    '<div class="dq-stats">' +
+      '<div>' + _esc(item.name) + ' x1</div>' +
+      '<div>どうぐやなら ' + (item.sellPrice || 0) + 'G でうれる</div>' +
+      '<label>価格 <input id="market-price" type="number" min="1" value="' + price + '"> G</label>' +
+      '<label><input type="radio" name="market-fee-side" value="seller" checked> てすうりょうは じぶん</label>' +
+      '<label><input type="radio" name="market-fee-side" value="buyer"> てすうりょうは かいぬし</label>' +
+      '<div id="market-fee-preview">手数料 ' + s.fee + 'G / 買い手 ' + s.buyerPays + 'G / 受取 ' + s.sellerReceives + 'G</div>' +
+    '</div>' +
+    '<ul class="dq-list"><li data-market-action="listConfirm">だす</li><li data-cmd="marketSell">もどる</li></ul>';
+  const priceEl = $("market-price");
+  const update = () => {
+    const side = document.querySelector("input[name='market-fee-side']:checked").value;
+    const st = clientMarketSettlement(Number(priceEl.value || 0), side);
+    $("market-fee-preview").textContent = "手数料 " + st.fee + "G / 買い手 " + st.buyerPays + "G / 受取 " + st.sellerReceives + "G";
+  };
+  priceEl.addEventListener("input", update);
+  Array.from(document.querySelectorAll("input[name='market-fee-side']")).forEach((el) => el.addEventListener("change", update));
+}
+
+function renderMarketListConfirm() {
+  const p = App._pendingMarket;
+  if (!p) return renderMarketRoot();
+  const price = Number($("market-price").value || 0);
+  const side = document.querySelector("input[name='market-fee-side']:checked").value;
+  const st = clientMarketSettlement(price, side);
+  App._pendingMarket = { ...p, price, feePayerSide: side };
+  $("menu-content").innerHTML =
+    '<div class="dq-title">ほんとうに だしますか？</div>' +
+    '<div class="dq-stats">' +
+      '<div>' + _esc(p.itemName) + ' x1</div>' +
+      '<div>買い手支払い: ' + st.buyerPays + 'G</div>' +
+      '<div>手数料: ' + st.fee + 'G</div>' +
+      '<div>受取: ' + st.sellerReceives + 'G</div>' +
+    '</div>' +
+    '<ul class="dq-list"><li data-market-action="listDo">はい</li><li data-cmd="marketSell">いいえ</li></ul>';
+}
+
+async function doMarketList() {
+  const p = App._pendingMarket;
+  if (!p) return renderMarketRoot();
+  try {
+    const r = await API.marketList(p.itemId, 1, p.price, p.feePayerSide);
+    $("menu-msg").textContent = "出品しました。買い手 " + r.buyerPays + "G";
+    showToast("まーけっとに出品しました", { duration: 3500 });
+    App._pendingMarket = null;
+    renderMarketRoot();
+    renderItems();
+  } catch (e) { $("menu-msg").textContent = e.message; }
+}
+
+async function renderMarketBuy() {
+  let listings = [];
+  try { listings = await API.market(); } catch (e) { listings = []; }
+  listings = (listings || []).filter((l) => !App.player || l.sellerId !== App.player.id);
+  const rows = listings.map((l) =>
+    '<li data-market-buy="' + _esc(l.id) + '">' + _esc(l.itemName) + ' <span class="dq-qty">x' + l.qty + '</span> <span class="dq-eff">' + l.buyerPays + 'G</span><br><span class="muted">売り手 ' + _esc(l.seller) + '</span></li>'
+  ).join("");
+  App._marketListings = listings;
+  $("menu-content").innerHTML =
+    '<div class="dq-title">かう</div><ul class="dq-list">' + (rows || '<li class="dq-empty">でていない</li>') + '</ul>' +
+    '<ul class="dq-list"><li data-cmd="market">もどる</li></ul>';
+}
+
+function renderMarketBuyConfirm(listingId) {
+  const l = (App._marketListings || []).find((x) => x.id === listingId);
+  if (!l) return renderMarketBuy();
+  App._pendingMarket = { kind: "buy", listingId: l.id };
+  $("menu-content").innerHTML =
+    '<div class="dq-title">ほんとうに かいますか？</div>' +
+    '<div class="dq-stats">' +
+      '<div>' + _esc(l.itemName) + ' x' + l.qty + '</div>' +
+      '<div>支払い: ' + l.buyerPays + 'G</div>' +
+      '<div>手数料: ' + l.feeAmount + 'G</div>' +
+      '<div>売り手: ' + _esc(l.seller) + '</div>' +
+    '</div>' +
+    '<ul class="dq-list"><li data-market-action="buyDo">はい</li><li data-cmd="marketBuy">いいえ</li></ul>';
+}
+
+async function doMarketBuy() {
+  const p = App._pendingMarket;
+  if (!p) return renderMarketBuy();
+  try {
+    const r = await API.marketBuy(p.listingId);
+    App.player = await API.me();
+    updateHpDisplay();
+    $("menu-msg").textContent = "買いました。支払い " + r.buyerPays + "G";
+    App._pendingMarket = null;
+    renderMarketRoot();
+    renderItems();
+  } catch (e) { $("menu-msg").textContent = e.message; }
+}
+
+async function renderMarketCancel() {
+  let listings = [];
+  try { listings = await API.marketMine(); } catch (e) { listings = []; }
+  App._marketListings = listings || [];
+  const rows = App._marketListings.map((l) =>
+    '<li data-market-cancel="' + _esc(l.id) + '">' + _esc(l.itemName) + ' <span class="dq-qty">x' + l.qty + '</span> <span class="dq-eff">' + l.buyerPays + 'G</span></li>'
+  ).join("");
+  $("menu-content").innerHTML =
+    '<div class="dq-title">とりけし</div><ul class="dq-list">' + (rows || '<li class="dq-empty">出品していない</li>') + '</ul>' +
+    '<ul class="dq-list"><li data-cmd="market">もどる</li></ul>';
+}
+
+function renderMarketCancelConfirm(listingId) {
+  const l = (App._marketListings || []).find((x) => x.id === listingId);
+  if (!l) return renderMarketCancel();
+  const fee = clientMarketCancelFee(l.price);
+  App._pendingMarket = { kind: "cancel", listingId: l.id };
+  $("menu-content").innerHTML =
+    '<div class="dq-title">とりけしますか？</div>' +
+    '<div class="dq-stats">' +
+      '<div>' + _esc(l.itemName) + ' x' + l.qty + '</div>' +
+      '<div>取消手数料: ' + fee + 'G</div>' +
+    '</div>' +
+    '<ul class="dq-list"><li data-market-action="cancelDo">はい</li><li data-cmd="marketCancel">いいえ</li></ul>';
+}
+
+async function doMarketCancel() {
+  const p = App._pendingMarket;
+  if (!p) return renderMarketCancel();
+  try {
+    const r = await API.marketCancel(p.listingId);
+    if (App.player && typeof r.gold !== "undefined") App.player.gold = r.gold;
+    updateHpDisplay();
+    $("menu-msg").textContent = "取り消しました。手数料 " + r.fee + "G";
+    App._pendingMarket = null;
+    renderMarketRoot();
+    renderItems();
+  } catch (e) { $("menu-msg").textContent = e.message; }
 }
 
 function renderStatus() {
@@ -1027,6 +1259,17 @@ async function onMenuClick(e) {
   if (cmd === "item") { renderItemMenu(); return; }
   if (cmd === "status") { renderStatus(); return; }
   if (cmd === "friends") { renderFriends(); return; }
+  if (cmd === "market") { renderMarketRoot(); return; }
+  if (cmd === "marketBuy") { await renderMarketBuy(); return; }
+  if (cmd === "marketSell") { await renderMarketSell(); return; }
+  if (cmd === "marketCancel") { await renderMarketCancel(); return; }
+  if (li.dataset.marketSell) { await renderMarketSellForm(li.dataset.marketSell); return; }
+  if (li.dataset.marketBuy) { renderMarketBuyConfirm(li.dataset.marketBuy); return; }
+  if (li.dataset.marketCancel) { renderMarketCancelConfirm(li.dataset.marketCancel); return; }
+  if (li.dataset.marketAction === "listConfirm") { renderMarketListConfirm(); return; }
+  if (li.dataset.marketAction === "listDo") { await doMarketList(); return; }
+  if (li.dataset.marketAction === "buyDo") { await doMarketBuy(); return; }
+  if (li.dataset.marketAction === "cancelDo") { await doMarketCancel(); return; }
   if (li.dataset.use) {
     try {
       const wasPoisoned = !!(App.player && App.player.poisoned);

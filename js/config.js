@@ -23,6 +23,12 @@ const CONFIG = {
   // 戦闘の乱数(false=決定論的でテスト再現しやすい)
   BATTLE_USE_RANDOM: false,
   BATTLE_RANDOM_RANGE: 0.2, // ±20%(BATTLE_USE_RANDOM=true のときのみ有効)
+  BATTLE_RETURN_DELAY_MS: 5000,
+  MARKET_POLL_INTERVAL_MS: 30000,
+  MARKET_FEE_FIXED: 5,
+  MARKET_FEE_RATE: 0,
+  MARKET_CANCEL_FEE_FIXED: 5,
+  MARKET_CANCEL_FEE_RATE: 0,
 
   // テスト用: true にすると次のターンで必ず敗北する(敗北ペナルティ検証用)
   DEBUG_FORCE_LOSE: false,

@@ -44,6 +44,11 @@ const API = {
   innRest: (innId) => _api("/api/inn/rest", "POST", { innId }),
   spotStates: () => _api("/api/spot-states", "GET"),
   inventory: () => _api("/api/inventory", "GET"),
+  market: () => _api("/api/market", "GET"),
+  marketMine: () => _api("/api/market/mine", "GET"),
+  marketList: (itemId, qty, price, feePayerSide) => _api("/api/market/list", "POST", { itemId, qty, price, feePayerSide }),
+  marketBuy: (listingId) => _api("/api/market/buy", "POST", { listingId }),
+  marketCancel: (listingId) => _api("/api/market/cancel", "POST", { listingId }),
   inns: () => _api("/api/inns", "GET"),
   master: () => _api("/api/master", "GET"),
 };
