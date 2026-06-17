@@ -6,11 +6,17 @@ const iconv = require("iconv-lite");
 const { z } = require("zod");
 const { prisma } = require("./db");
 const adminCsv = require("./adminCsv");
+const {
+  createAdminSession,
+  getIdleTimeoutSeconds,
+  validateAdminSession,
+} = require("./adminSession");
 
 const PORT = Number(process.env.PORT || 3010);
 const ADMIN_USER = process.env.ADMIN_USER || "admin";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 const COOKIE_SECRET = process.env.ADMIN_COOKIE_SECRET || process.env.SESSION_SECRET || "dev-admin-secret";
+const ADMIN_IDLE_TIMEOUT_SECONDS = getIdleTimeoutSeconds(process.env);
 const SESSION_COOKIE = "admin_sid";
 const sessions = new Map();
 const importPreviews = new Map();
@@ -26,7 +32,8 @@ function requireAdmin(handler) {
   return async (req, reply) => {
     const sid = req.cookies && req.cookies[SESSION_COOKIE];
     const session = sid && sessions.get(sid);
-    if (!session || session.expiresAt < Date.now()) {
+    const validation = validateAdminSession(session, Date.now(), ADMIN_IDLE_TIMEOUT_SECONDS);
+    if (!validation.ok) {
       if (sid) sessions.delete(sid);
       return reply.code(401).send({ error: "管理者ログインが必要です" });
     }
@@ -379,9 +386,9 @@ app.post("/api/admin/login", async (req, reply) => {
     return reply.code(401).send({ error: "管理者IDまたはパスワードが違います" });
   }
   const sid = crypto.randomBytes(32).toString("hex");
-  sessions.set(sid, { adminName: ADMIN_USER, expiresAt: Date.now() + 8 * 60 * 60 * 1000 });
+  sessions.set(sid, createAdminSession(ADMIN_USER, Date.now()));
   setAdminCookie(reply, sid);
-  return { ok: true, adminName: ADMIN_USER };
+  return { ok: true, adminName: ADMIN_USER, idleTimeoutSeconds: ADMIN_IDLE_TIMEOUT_SECONDS };
 });
 
 app.post("/api/admin/logout", async (req, reply) => {
@@ -391,7 +398,11 @@ app.post("/api/admin/logout", async (req, reply) => {
   return { ok: true };
 });
 
-app.get("/api/admin/me", requireAdmin(async (req) => ({ ok: true, adminName: req.adminName })));
+app.get("/api/admin/me", requireAdmin(async (req) => ({
+  ok: true,
+  adminName: req.adminName,
+  idleTimeoutSeconds: ADMIN_IDLE_TIMEOUT_SECONDS,
+})));
 
 app.get("/api/admin/players", requireAdmin(async () => {
   const players = await prisma.player.findMany({

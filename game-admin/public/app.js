@@ -5,6 +5,10 @@ let selectedMaster = null;
 let masterMode = "edit";
 let currentImportPreview = null;
 const { formatLocalDateTime } = window.adminTime;
+const ADMIN_APP_VERSION = window.ADMIN_APP_VERSION || { version: "dev" };
+let idleTimeoutSeconds = 600;
+let idleTimer = null;
+let loggedIn = false;
 const MASTER_PRIMARY_IDS = {
   spots: "spotId",
   enemies: "enemyId",
@@ -82,10 +86,42 @@ async function api(path, method = "GET", body) {
   return data;
 }
 
+function applyAdminMeta(data) {
+  if (data && Number.isInteger(data.idleTimeoutSeconds) && data.idleTimeoutSeconds > 0) {
+    idleTimeoutSeconds = data.idleTimeoutSeconds;
+  }
+  scheduleIdleTimeout();
+}
+
+function scheduleIdleTimeout() {
+  if (idleTimer) window.clearTimeout(idleTimer);
+  if (!loggedIn) return;
+  idleTimer = window.setTimeout(handleIdleTimeout, idleTimeoutSeconds * 1000);
+}
+
+async function handleIdleTimeout() {
+  if (!loggedIn) return;
+  await api("/api/admin/logout", "POST").catch(() => {});
+  loggedIn = false;
+  showAdmin(false);
+  $("login-msg").textContent = "無操作タイムアウトのためログアウトしました";
+}
+
+function resetIdleTimeout() {
+  if (loggedIn) scheduleIdleTimeout();
+}
+
 function showAdmin(show) {
+  loggedIn = show;
   $("login-panel").classList.toggle("hidden", show);
   $("admin-panel").classList.toggle("hidden", !show);
   $("btn-logout").classList.toggle("hidden", !show);
+  if (show) {
+    scheduleIdleTimeout();
+  } else if (idleTimer) {
+    window.clearTimeout(idleTimer);
+    idleTimer = null;
+  }
 }
 
 function showTab(tab) {
@@ -99,7 +135,7 @@ function showTab(tab) {
 
 async function checkLogin() {
   try {
-    await api("/api/admin/me");
+    applyAdminMeta(await api("/api/admin/me"));
     showAdmin(true);
     await loadPlayers();
     await loadSpots();
@@ -111,7 +147,7 @@ async function checkLogin() {
 async function login() {
   $("login-msg").textContent = "";
   try {
-    await api("/api/admin/login", "POST", { loginId: $("login-id").value, password: $("login-password").value });
+    applyAdminMeta(await api("/api/admin/login", "POST", { loginId: $("login-id").value, password: $("login-password").value }));
     showAdmin(true);
     await loadPlayers();
     await loadSpots();
@@ -415,6 +451,13 @@ $("player-list").addEventListener("click", (e) => {
 $("master-list").addEventListener("click", (e) => {
   const li = e.target.closest("[data-master]");
   if (li) loadMasterDetail($("master-type").value, li.dataset.master);
+});
+
+if ($("admin-version")) {
+  $("admin-version").textContent = "管理アプリ v" + ADMIN_APP_VERSION.version;
+}
+["click", "keydown", "pointermove", "input"].forEach((eventName) => {
+  document.addEventListener(eventName, resetIdleTimeout, { passive: true });
 });
 
 checkLogin();
