@@ -1,3 +1,5 @@
 
 # MapTiler APIキー(公開リポジトリに含めない)
 js/map-key.js
+# Google APIキー(公開リポジトリに含めない)
+入力データ作成/dist/config.ini
