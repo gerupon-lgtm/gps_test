@@ -4,6 +4,7 @@ let spots = [];
 let selectedMaster = null;
 let masterMode = "edit";
 let currentImportPreview = null;
+const { formatLocalDateTime } = window.adminTime;
 const MASTER_PRIMARY_IDS = {
   spots: "spotId",
   enemies: "enemyId",
@@ -256,7 +257,7 @@ function renderPlayerDetail(p) {
   setText("[data-field='hp']", `${p.hp}/${p.maxHp}`);
   setText("[data-field='gold']", `${p.gold}G`);
   setText("[data-field='poisoned']", p.poisoned ? "毒" : "なし");
-  setText("[data-field='downed']", p.downedUntil || "なし");
+  setText("[data-field='downed']", formatLocalDateTime(p.downedUntil, "なし"));
 
   $("spot-select").innerHTML = spots.map((s) => `<option value="${escAttr(s.spotId)}">${esc(s.name)} (${esc(s.spotId)})</option>`).join("");
   $("spot-select").addEventListener("change", syncSpotForm);
@@ -272,7 +273,7 @@ function renderPlayerDetail(p) {
 function renderSpotStateList(p) {
   const defeated = new Set(p.defeatedSpots || []);
   $("spot-state-list").innerHTML = p.spotStates.length
-    ? p.spotStates.map((s) => `<li>${esc(s.spotName)} (${esc(s.spotId)}) / ${defeated.has(s.spotId) ? "撃破済み" : "未撃破"} / victory: ${esc(s.victoryUntil || "-")} / penalty: ${esc(s.penaltyUntil || "-")}</li>`).join("")
+    ? p.spotStates.map((s) => `<li>${esc(s.spotName)} (${esc(s.spotId)}) / ${defeated.has(s.spotId) ? "撃破済み" : "未撃破"} / victory: ${esc(formatLocalDateTime(s.victoryUntil))} / penalty: ${esc(formatLocalDateTime(s.penaltyUntil))}</li>`).join("")
     : "<li>状態レコードなし</li>";
 }
 
