@@ -111,6 +111,35 @@ function resetIdleTimeout() {
   if (loggedIn) scheduleIdleTimeout();
 }
 
+function resetAdminScreenState() {
+  selectedPlayerId = null;
+  selectedPlayer = null;
+  spots = [];
+  selectedMaster = null;
+  masterMode = "edit";
+  currentImportPreview = null;
+
+  $("player-list").innerHTML = "";
+  $("master-list").innerHTML = "";
+  $("player-detail").textContent = "プレイヤーを選択してください。";
+  $("master-detail").textContent = "マスタを選択してください。";
+  $("spot-state-list").innerHTML = "";
+  $("import-preview").classList.add("hidden");
+  $("import-summary").textContent = "";
+  $("import-errors").innerHTML = "";
+  $("import-warnings").innerHTML = "";
+  $("import-changes").innerHTML = "";
+  $("btn-master-apply").disabled = false;
+  $("proximity-result").classList.add("hidden");
+  $("proximity-summary").textContent = "";
+  $("proximity-list").innerHTML = "";
+  $("master-import-file").value = "";
+  $("master-type").value = "spots";
+  $("csv-encoding").value = "sjis";
+  $("proximity-threshold").value = "10";
+  showTab("players");
+}
+
 function showAdmin(show) {
   loggedIn = show;
   $("login-panel").classList.toggle("hidden", show);
@@ -136,10 +165,12 @@ function showTab(tab) {
 async function checkLogin() {
   try {
     applyAdminMeta(await api("/api/admin/me"));
+    resetAdminScreenState();
     showAdmin(true);
     await loadPlayers();
     await loadSpots();
   } catch (e) {
+    resetAdminScreenState();
     showAdmin(false);
   }
 }
@@ -148,6 +179,7 @@ async function login() {
   $("login-msg").textContent = "";
   try {
     applyAdminMeta(await api("/api/admin/login", "POST", { loginId: $("login-id").value, password: $("login-password").value }));
+    resetAdminScreenState();
     showAdmin(true);
     await loadPlayers();
     await loadSpots();
@@ -158,6 +190,7 @@ async function login() {
 
 async function logout() {
   await api("/api/admin/logout", "POST").catch(() => {});
+  resetAdminScreenState();
   showAdmin(false);
 }
 

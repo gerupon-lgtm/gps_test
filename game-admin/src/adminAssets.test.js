@@ -22,3 +22,18 @@ test("import preview renderer tolerates missing legacy preview metadata", () => 
   assert.match(appJs, /change\.data \|\| \{\}/);
   assert.match(appJs, /preview\.changes\.some\(\(change\) => !change\.data\)/);
 });
+
+test("admin screen state is reset before a fresh login view loads", () => {
+  const appJs = fs.readFileSync(path.join(__dirname, "..", "public", "app.js"), "utf8");
+
+  assert.match(appJs, /function resetAdminScreenState\(\)/);
+  assert.match(appJs, /selectedPlayerId = null/);
+  assert.match(appJs, /selectedPlayer = null/);
+  assert.match(appJs, /selectedMaster = null/);
+  assert.match(appJs, /currentImportPreview = null/);
+  assert.match(appJs, /\$\("player-list"\)\.innerHTML = ""/);
+  assert.match(appJs, /\$\("master-list"\)\.innerHTML = ""/);
+  assert.match(appJs, /\$\("player-detail"\)\.textContent = "プレイヤーを選択してください。"/);
+  assert.match(appJs, /\$\("master-detail"\)\.textContent = "マスタを選択してください。"/);
+  assert.match(appJs, /resetAdminScreenState\(\);\s*showAdmin\(true\);/);
+});
