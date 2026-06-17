@@ -1000,10 +1000,10 @@ function renderMenuRoot() {
   $("menu-content").innerHTML =
     '<div class="dq-title">コマンド</div>' +
     '<ul class="dq-list">' +
-      '<li data-cmd="market">まーけっと</li>' +
       '<li data-cmd="item">どうぐ</li>' +
       '<li data-cmd="status">つよさ</li>' +
       '<li data-cmd="friends">なかま</li>' +
+      '<li data-cmd="market">まーけっと</li>' +
       '<li data-cmd="close">とじる</li>' +
     '</ul>';
 }
@@ -1080,8 +1080,7 @@ async function renderMarketSellForm(itemId) {
       '<div>' + _esc(item.name) + ' x1</div>' +
       '<div>どうぐやなら ' + (item.sellPrice || 0) + 'G でうれる</div>' +
       '<label>価格 <input id="market-price" type="number" min="1" value="' + price + '"> G</label>' +
-      '<label><input type="radio" name="market-fee-side" value="seller" checked> てすうりょうは じぶん</label>' +
-      '<label><input type="radio" name="market-fee-side" value="buyer"> てすうりょうは かいぬし</label>' +
+      '<div class="market-fee-row"><span>てすうりょう</span><label><input type="radio" name="market-fee-side" value="seller" checked>じぶん</label><label><input type="radio" name="market-fee-side" value="buyer">かいぬし</label></div>' +
       '<div id="market-fee-preview">手数料 ' + s.fee + 'G / 買い手 ' + s.buyerPays + 'G / 受取 ' + s.sellerReceives + 'G</div>' +
     '</div>' +
     '<ul class="dq-list"><li data-market-action="listConfirm">だす</li><li data-cmd="marketSell">もどる</li></ul>';

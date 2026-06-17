@@ -628,6 +628,23 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 .dq-qty { color: #cbd5e1; font-size: 0.85em; }
 .dq-eff { color: #86efac; font-size: 0.85em; }
 .dq-stats div { padding: 2px 0; }
+.market-fee-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+  font-size: 0.9rem;
+}
+.market-fee-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin: 0;
+}
+.market-fee-row input[type="radio"] {
+  width: auto;
+  margin: 0;
+}
 .dq-titles { padding-left: 0.7rem; color: #fcd34d; }
 .dq-msg { margin: 6px 0 0; color: #fcd34d; min-height: 1.2em; font-size: 0.85rem; }
 
