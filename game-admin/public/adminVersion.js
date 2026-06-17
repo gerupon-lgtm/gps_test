@@ -1,7 +1,7 @@
 (function (root) {
   const ADMIN_APP_VERSION = {
-    version: "0.1.3",
-    assetsVersion: "0.1.3",
+    version: "0.1.4",
+    assetsVersion: "0.1.4",
     releasedAt: "2026-06-18",
   };
 

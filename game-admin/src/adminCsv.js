@@ -2,7 +2,11 @@ const DUPLICATE_DEFAULT_SKIP_TYPES = new Set(["enemies", "items", "postalAreas"]
 const FACILITY_MASTER_TYPES = new Set(["spots", "inns", "shops"]);
 
 function normalizeMasterValue(type, value) {
-  if (type === "boolean") return value === true || value === "true" || value === "1" || value === 1;
+  if (type === "boolean") {
+    if (value === true || value === 1) return true;
+    const s = value == null ? "" : String(value).trim().toLowerCase();
+    return s === "true" || s === "1";
+  }
   if (type === "int") {
     const n = Number(value);
     if (!Number.isInteger(n)) throw new Error("INVALID_NUMBER");

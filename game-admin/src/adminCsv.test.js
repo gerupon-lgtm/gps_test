@@ -146,6 +146,17 @@ test("preserves explicit active true and false values from imported rows", () =>
   assert.equal(preview.changes[1].data.active, false);
 });
 
+test("preserves spreadsheet-style uppercase active values from imported rows", () => {
+  const preview = diffMasterRows(simpleActiveConfig, [
+    { id: "row_true", name: "Upper True", active: "TRUE" },
+    { id: "row_false", name: "Upper False", active: "FALSE" },
+  ], []);
+
+  assert.equal(preview.errors.length, 0);
+  assert.equal(preview.changes[0].data.active, true);
+  assert.equal(preview.changes[1].data.active, false);
+});
+
 test("treats omitted active as true for an updated master row", () => {
   const preview = diffMasterRows(spotConfig, [
     { spotId: "spot_00001", name: "Updated", lat: "35", lng: "136", radiusM: "50", enemyId: "slime", rewardItemId: "potion", penaltyMin: "30" },
