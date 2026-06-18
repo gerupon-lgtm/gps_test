@@ -60,18 +60,26 @@ def extract_location_hint(filename):
     return ""
 
 
-def get_coordinates(facility_name, location_hint, app_instance):
+def extract_postal_code(geocode_result):
+    for component in geocode_result.get("address_components", []):
+        if "postal_code" in component.get("types", []):
+            return component.get("long_name", "")
+    return ""
+
+
+def get_location_info(facility_name, location_hint, app_instance):
     """Fetch latitude and longitude from Google Maps Geocoding API."""
     search_query = f"{location_hint} {facility_name}".strip()
     try:
         geocode_result = gmaps.geocode(search_query, language="ja")
         if geocode_result:
-            location = geocode_result[0]["geometry"]["location"]
-            return location["lat"], location["lng"]
+            first_result = geocode_result[0]
+            location = first_result["geometry"]["location"]
+            return location["lat"], location["lng"], extract_postal_code(first_result)
     except Exception as e:
         app_instance.log(f"  Google API エラー ({facility_name}): {e}")
-        return None, None
-    return None, None
+        return None, None, ""
+    return None, None, ""
 
 
 def get_gsi_info(val1, val2, app_instance):
@@ -238,19 +246,21 @@ class App(tk.Tk):
             gsi_infos = []
             for facility in facility_list:
                 facility_clean = facility.split(",")[0].strip()
-                lat, lng = get_coordinates(facility_clean, location_hint, self)
+                lat, lng, postal_code = get_location_info(facility_clean, location_hint, self)
 
                 if lat is None or lng is None:
                     self.log(f"  位置特定失敗: {facility_clean}")
-                    output_rows.append(build_master_row(master_type, facility_clean, "", "", ":"))
+                    output_rows.append(build_master_row(master_type, facility_clean, "", "", ":", ""))
                     continue
 
                 self.log(f"  座標取得成功: {facility_clean} -> 緯度:{lat}, 経度:{lng}")
+                if postal_code:
+                    self.log(f"  郵便番号取得結果: {postal_code}")
                 gsi_info = get_gsi_info(lat, lng, self)
                 self.log(f"  住所コード取得結果: {gsi_info}")
                 if master_type == "spots":
-                    gsi_infos.append(gsi_info)
-                output_rows.append(build_master_row(master_type, facility_clean, lat, lng, gsi_info))
+                    gsi_infos.append((gsi_info, postal_code))
+                output_rows.append(build_master_row(master_type, facility_clean, lat, lng, gsi_info, postal_code))
 
             with open(output_file_path, "w", newline="", encoding="cp932", errors="replace") as f:
                 writer = csv.writer(f)

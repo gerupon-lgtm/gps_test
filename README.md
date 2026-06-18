@@ -1,11 +1,11 @@
 # GPS連動ブラウザゲーム 検証版(PoC)
 
-スマートフォンのブラウザから取得したGPS情報を使い、CSVに登録した地点との距離判定で敵を出現させ、簡易戦闘・報酬取得・敗北ペナルティまでを検証する技術検証版です。
+スマートフォンのブラウザから取得したGPS情報を使い、登録スポットとの距離判定で敵を出現させ、ターン制戦闘・報酬取得・宿屋/道具屋・マーケット・撃破済み管理までを検証する技術検証版です。
 
-- 配信: GitHub Pages(HTTPS)
-- データ: 同一リポジトリ内のCSV(`data/`)
-- 保存: localStorage
-- バックエンド: なし(ブラウザJavaScriptのみ)
+- 配信: Caddy/HTTPS(検証VM) + 静的フロント
+- データ: PostgreSQL/Prismaを正本、CSVは初期投入・一括入出力・フロント配信用の補助
+- 保存: DB中心。地図/一部表示状態はブラウザ側にも保持
+- バックエンド: Node.js/Fastify API
 
 ## ディレクトリ構成
 
@@ -27,23 +27,42 @@
 │   ├─ spots.csv
 │   ├─ enemies.csv
 │   └─ items.csv
+├─ server/              Node.js/Fastify API + Prisma
+├─ game-admin/          DB管理Webアプリ
 ├─ assets/
 │   ├─ enemy_slime.png
 │   └─ enemy_golem.png
 └─ docs/
-    ├─ specification.md
-    ├─ design.md
-    └─ test-plan.md
+    ├─ 01_specification.md
+    ├─ 02_design.md
+    ├─ 03_test-plan.md
+    ├─ 04_backend_design.md
+    ├─ 05_oci_setup.md
+    ├─ 06_gameplay_extension.md
+    ├─ 07_prisma_studio.md
+    ├─ 08_admin_app.md
+    ├─ 09_input_data_tool.md
+    └─ 10_requirements_review.md
 ```
 
-## GitHub Pagesでの公開手順
+## 公開・反映手順
 
-1. このフォルダ一式を新規リポジトリにpushする。
-2. Settings → Pages で、Branch を `main`(または該当ブランチ)/ root に設定。
-3. 発行された `https://<ユーザー名>.github.io/<リポジトリ名>/` にアクセス。
-4. スマートフォンで開き、位置情報の利用を許可する。
+現行の検証VMでは、リポジトリを更新後にAPI/DBと静的フロントをそれぞれ反映する。
 
-`.nojekyll` を含めているため、Jekyll処理を無効化して `js/` などがそのまま配信されます。
+```bash
+cd ~/app/game
+git pull
+
+cd ~/app/game/server
+npx prisma db push
+npx prisma generate
+sudo systemctl restart gameapi
+
+cd ~/app/game
+sudo cp -r index.html css js data assets /var/www/game/
+```
+
+初期PoCではGitHub Pages配信だったが、現在はCaddy/HTTPS + Node API + PostgreSQL構成を基本とする。詳細は `docs/05_oci_setup.md` を参照。
 
 ## 検証用パラメータ(js/config.js)
 
@@ -93,7 +112,12 @@
 
 ## 更新履歴(主な仕様)
 
-- 勝利後クールダウン: 同じスポットの敵は撃破後 60分間 再出現しません(localStorageの `gps_game_victory_cooldowns` で管理)。時間は `config.js` の `VICTORY_COOLDOWN_MINUTES` で変更可。
+- サーバー権威: 認証、プレイヤー状態、戦闘、報酬、宿屋、道具屋、マーケットをAPI/DB中心に移行。
+- HUD: プレイヤー状態表示から「どうぐ」「つよさ」「なかま」「まーけっと」を操作。
+- マーケット: 出品/購入/取消、売買確認、固定5G+割合0%の手数料、手数料台帳、出品トースト通知を追加。
+- スポット一覧: 近い順表示に、永続履歴ベースの「撃破済み」バッジを追加。クールダウン中は「撃破済み 残り○分」。
+- 今後要件: ランダム出現NPC、NPCヒント/行商人/少量回復、他プレイヤー遭遇トーストを要件整理に追加。
+- 勝利後クールダウン: 同じスポットの敵は撃破後 60分間 再出現しません。現行はDBの `PlayerSpotState.victoryUntil` を中心に管理し、スポット一覧では「撃破済み 残り○分」と表示します。
 - チェックイン距離: 全スポット 50m(spots.csv の `radius_meters`)。
 - 地図: 表示を拡大し、デフォルト拡大率を上げました(`config.js` の `MAP_DEFAULT_ZOOM`、既定18)。
 - 探索画面のレイアウト: 上から「最寄りスポット名+距離」→「判定/敵出現」→「地図」→「座標などの詳細(折りたたみ)」の順。スマホで一画面に収まるよう縦フレックスで構成。

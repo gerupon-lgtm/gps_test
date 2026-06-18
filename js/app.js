@@ -17,6 +17,7 @@ const App = {
   battleReturnTimer: null,
   marketPollTimer: null,
   marketSeenListings: null,
+  defeatedSpotIds: new Set(),
   exploreStartPosition: null,
   exploreResult: null,
 };
@@ -318,6 +319,7 @@ function findNearestForDisplay(pos) {
 async function openSpotList() {
   show("spot-list-modal");
   await refreshSpotStates();   // 開いた時点の最新状態を取得
+  await refreshDefeatedSpots(); // 永続的な撃破履歴も同期
   buildSpotList();
 }
 
@@ -363,10 +365,12 @@ function buildSpotList() {
       } else if (isPenaltyActive(r.spot.spot_id)) {
         const min = Math.ceil(getPenaltyRemainingSeconds(r.spot.spot_id) / 60);
         badge = " <span class=\"spot-badge penalty\">待機中 残り" + min + "分</span>";
+      } else if (App.defeatedSpotIds && App.defeatedSpotIds.has(r.spot.spot_id)) {
+        badge = " <span class=\"spot-badge defeated\">撃破済み</span>";
       }
       return (
         "<li class=\"spot-item\">" +
-        "<span class=\"spot-item-name\">" + r.spot.spot_name + badge + "</span>" +
+        "<span class=\"spot-item-name\">" + _esc(r.spot.spot_name) + badge + "</span>" +
         "<span class=\"spot-item-meta\">" + r.compass + " / " + formatDistance(r.distance) + "</span>" +
         "</li>"
       );
@@ -749,6 +753,7 @@ async function refreshDefeatedSpots() {
   if (!App.data) return;
   let ids = [];
   try { ids = await API.defeatedSpots(); } catch (e) { return; }
+  App.defeatedSpotIds = new Set(ids || []);
   const set = {};
   (ids || []).forEach((id) => { set[id] = true; });
   const list = (App.data.spots || []).filter((sp) => set[sp.spot_id]);

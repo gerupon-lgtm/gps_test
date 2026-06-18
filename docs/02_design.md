@@ -7,6 +7,34 @@
 | 文書名 | GPS連動ブラウザゲーム 検証版 設計書 |
 | 対象フェーズ | PoC / 技術検証 |
 | 作成日 | 2026/06/13 |
+| 現行補足 | 2026/06/18時点の詳細なas-built設計は `04_backend_design.md` / `06_gameplay_extension.md` を正とする |
+
+---
+
+## 1.1 現行構成との差分メモ
+
+本書はPoC開始時のフロント単体設計を残す。現行版では以下の構成に拡張されている。
+
+```text
+静的フロント(index.html/css/js/assets/data)
+  ↓ same-origin fetch
+Node.js/Fastify API(server/)
+  ↓ Prisma
+PostgreSQL
+
+管理Webアプリ(game-admin/)
+  ↓ Prisma
+PostgreSQL
+```
+
+現行の主な設計差分:
+
+- 認証はCookieセッションで管理する。
+- 戦闘、報酬、HP/毒/レベル、宿屋、道具屋、マーケットはサーバー権威で処理する。
+- `Player.defeatedSpots` と `PlayerSpotState.victoryUntil` で撃破履歴とクールダウンを扱う。
+- スポット一覧では、永続履歴に基づく「撃破済み」バッジと、クールダウン中の「撃破済み 残り○分」を表示する。
+- マーケットは `MarketListing` と `MarketFeeLedger` で出品・決済・手数料を管理する。
+- 今後のNPCは、施設ではなく独立マスタとして扱い、ランダム出現結果と回復/販売などの効果はサーバー側で確定する方針。
 
 ---
 
@@ -362,7 +390,7 @@ gps-location-game-poc/
   │   ├─ enemies.csv
   │   └─ items.csv
   └─ docs/
-      ├─ specification.md
-      ├─ design.md
-      └─ test-plan.md
+      ├─ 01_specification.md
+      ├─ 02_design.md
+      └─ 03_test-plan.md
 ```

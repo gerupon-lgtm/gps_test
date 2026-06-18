@@ -60,7 +60,7 @@ def parse_gsi_info(gsi_info):
     return muni_cd, area_name, f"{muni_cd}:{area_name}"
 
 
-def build_master_row(master_type, facility_name, lat, lng, gsi_info):
+def build_master_row(master_type, facility_name, lat, lng, gsi_info, postal_code=""):
     config = get_output_config(master_type)
     if master_type == "spots":
         muni_cd, area_name, area_key = parse_gsi_info(gsi_info)
@@ -70,7 +70,7 @@ def build_master_row(master_type, facility_name, lat, lng, gsi_info):
             lat,
             lng,
             config.default_radius_m,
-            "",
+            postal_code,
             muni_cd,
             area_name,
             area_key,
@@ -85,10 +85,14 @@ def build_master_row(master_type, facility_name, lat, lng, gsi_info):
 def build_postal_area_rows(gsi_infos):
     rows = []
     seen = set()
-    for gsi_info in gsi_infos:
+    for item in gsi_infos:
+        if isinstance(item, tuple):
+            gsi_info, postal_code = item
+        else:
+            gsi_info, postal_code = item, ""
         muni_cd, area_name, area_key = parse_gsi_info(gsi_info)
         if not area_key or area_key in seen:
             continue
         seen.add(area_key)
-        rows.append([area_key, "", muni_cd, area_name, area_name, "true"])
+        rows.append([area_key, postal_code, muni_cd, area_name, area_name, "true"])
     return rows
