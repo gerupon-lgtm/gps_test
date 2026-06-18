@@ -74,6 +74,7 @@ model ItemMaster {
   healAmount  Int     @default(0)
   category    String  @default("misc") // heal/antidote/material/currency/collectible
   curePoison  Boolean @default(false)
+  shopBuyable Boolean @default(false) // 道具屋で販売されるか
   sellable    Boolean @default(true)
   active      Boolean @default(true)
 

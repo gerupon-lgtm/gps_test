@@ -450,3 +450,5 @@ POST /api/items/use
 確定スキーマは `server/prisma/schema.prisma` を正とする(User/Session/Player/ItemMaster/EnemyMaster/SpotMaster/InnMaster/ShopMaster/PlayerItem/PlayerSpotState/MarketListing/MarketFeeLedger/BattleLog/BattleSession)。各機能の確定挙動・パラメータは `docs/06_gameplay_extension.md` §9。
 
 撃破済みスポットは `Player.defeatedSpots` に永続履歴として保持し、`PlayerSpotState.victoryUntil` は再戦クールダウンを表す。フロントのスポット一覧では、永続履歴があるスポットに「撃破済み」バッジを表示し、`victoryUntil` が未来の場合のみ残り分数を併記する。
+
+道具屋の商品一覧に並ぶかは `ItemMaster.shopBuyable` で制御する。`sellable` は道具屋へ売却できるかの判定であり、購入可否とは分離する。

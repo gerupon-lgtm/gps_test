@@ -545,16 +545,16 @@ app.get("/api/master", async () => {
     items: items.map((i) => ({
       item_id: i.itemId, item_name: i.name, description: i.description, rarity: i.rarity,
       heal: i.healAmount, category: i.category, cure_poison: i.curePoison,
-      price: i.basePrice, sellable: i.sellable,
+      price: i.basePrice, shop_buyable: i.shopBuyable, sellable: i.sellable,
     })),
     inns: inns.map((n) => ({ inn_id: n.innId, inn_name: n.name, latitude: n.lat, longitude: n.lng, radius_meters: n.radiusM })),
     shops: shops.map((sh) => ({ shop_id: sh.shopId, shop_name: sh.name, latitude: sh.lat, longitude: sh.lng, radius_meters: sh.radiusM })),
   };
 });
 
-// 道具屋で買える商品(回復系のみ・在庫無限)
+// 道具屋で買える商品(shopBuyable=true・在庫無限)
 app.get("/api/shop/items", async () => {
-  const items = await prisma.itemMaster.findMany({ where: { active: true, OR: [{ category: "heal" }, { category: "antidote" }] } });
+  const items = await prisma.itemMaster.findMany({ where: { active: true, shopBuyable: true } });
   return items.map((it) => ({ itemId: it.itemId, name: it.name, price: it.basePrice, healAmount: it.healAmount, curePoison: it.curePoison }));
 });
 
@@ -569,7 +569,7 @@ app.post("/api/shop/buy", requireAuth(async (req, reply) => {
       const shop = await tx.shopMaster.findUnique({ where: { shopId } });
       if (!shop || !shop.active) throw new Error("SHOP_NOT_FOUND");
       const item = await tx.itemMaster.findUnique({ where: { itemId } });
-      if (!item || !item.active || (item.category !== "heal" && item.category !== "antidote")) throw new Error("NOT_BUYABLE");
+      if (!item || !item.active || !item.shopBuyable) throw new Error("NOT_BUYABLE");
       const cost = item.basePrice * qty;
       const player = await tx.player.findUnique({ where: { id: req.player.id } });
       if (player.gold < cost) throw new Error("INSUFFICIENT_GOLD");

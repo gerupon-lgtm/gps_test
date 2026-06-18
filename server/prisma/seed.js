@@ -2,6 +2,7 @@
 const fs = require("fs");
 const path = require("path");
 const { prisma } = require("../src/db");
+const { parseShopBuyable } = require("../src/shopRules");
 
 const DATA_DIR = path.join(__dirname, "..", "..", "data");
 
@@ -49,6 +50,7 @@ async function main() {
       healAmount: +(i.heal || 0), category: i.category || "misc",
       curePoison: String(i.cure_poison) === "1" || String(i.cure_poison).toLowerCase() === "true",
       basePrice: +(i.price || 0),
+      shopBuyable: parseShopBuyable(i),
       sellable: i.sellable === undefined ? true : (String(i.sellable) === "1" || String(i.sellable).toLowerCase() === "true"),
       active: parseActive(i.active),
     };

@@ -59,6 +59,7 @@ const MASTER_FIELDS = {
     healAmount: "int",
     category: "string",
     curePoison: "boolean",
+    shopBuyable: "boolean",
     sellable: "boolean",
     active: "boolean",
   },

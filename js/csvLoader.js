@@ -75,6 +75,7 @@ function normalizeItems(rows) {
     item_name: r.item_name,
     description: r.description || "",
     rarity: r.rarity || "",
+    shop_buyable: String(r.shop_buyable || "").toLowerCase() === "true" || r.shop_buyable === "1",
   }));
 }
 

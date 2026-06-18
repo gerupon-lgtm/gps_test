@@ -28,6 +28,7 @@
 | healAmount | Int @default(0) | 既存。HP回復量 |
 | curePoison | Boolean @default(false) | 使用で毒解除するか |
 | basePrice | Int @default(0) | 既存。道具屋の買値。売値は basePrice×SELL_RATE |
+| shopBuyable | Boolean @default(false) | 道具屋の商品一覧に並ぶか |
 | sellable | Boolean @default(true) | 道具屋で売れるか |
 
 ### EnemyMaster(追加)
@@ -48,7 +49,7 @@
 
 ### データCSV
 - `enemies.csv`:`exp_base, gold_base, drop_item_id, drop_rate, poison_chance` 列を追加。
-- `items.csv`:`category, cure_poison, price, sellable` 列を追加。**「どくけしそう」を新規追加**(category=antidote, cure_poison=true)。回復系(ポーション等)に price 設定。
+- `items.csv`:`category, cure_poison, price, shop_buyable, sellable` 列を追加。**「どくけしそう」を新規追加**(category=antidote, cure_poison=true)。道具屋に並べるものは `shop_buyable=1`、道具屋へ売れるものは `sellable=1`。
 - 新規 `shops.csv`:`shop_id, shop_name, latitude, longitude, radius_meters`。
 - レベル成長は数式(CSV不要)。
 
@@ -113,7 +114,7 @@
 - `shops.csv`/`ShopMaster` で固定地点。近接で売買UI(宿屋と同様、サーバーは shopId を信頼)。
 - **宿屋・道具屋はマップ上にアイコン(マーカー)表示する**(敵スポットは従来どおり地図に出さない方針を維持)。既存の宿屋にもマーカーを追加する。
 - `GET /api/shops`:一覧。
-- `POST /api/shop/buy { shopId, itemId, qty }`:`gold >= price×qty` を検証し決済、在庫へ加算。回復系は在庫無限。
+- `POST /api/shop/buy { shopId, itemId, qty }`:`shopBuyable=true` かつ `gold >= price×qty` を検証し決済、在庫へ加算。販売在庫は無限。
 - `POST /api/shop/sell { itemId, qty }`:`sellable` のみ。所持数検証 → 消費し `floor(basePrice×SELL_RATE)×qty` を加算。
 - すべて1トランザクション。
 
@@ -208,7 +209,7 @@ Phase A〜E を実装・デプロイ済み。本節は**実際の挙動・確定
 
 ### 9.7 道具屋(マップアイコン)
 - マップに 🛒(白地・青枠)アイコン。タップ→ポップアップ「入店」(10m以内)→**売買モーダル**。
-- 買う(回復系のみ・在庫無限)=`basePrice`、売る=`floor(basePrice×SELL_RATE)`。
+- 買う(`shopBuyable=true`・在庫無限)=`basePrice`、売る(`sellable=true`)=`floor(basePrice×SELL_RATE)`。
 - **確認ダイアログ**: 「『○○』を ○G で買い/売りますか？ はい／いいえ」。
 - API: `GET /api/shops` / `GET /api/shop/items` / `POST /api/shop/buy` / `POST /api/shop/sell`。
 
@@ -232,7 +233,7 @@ BATTLE_USE_RANDOM=false   BATTLE_RANDOM_RANGE=0.2
 
 ### 9.10 データ(マスタ)
 - `enemies.csv`: 10体。`exp_base/gold_base/drop_item_id/drop_rate/poison_chance` 設定済み。
-- `items.csv`: 11種。`category(heal/antidote/material/currency/collectible)/cure_poison/price(=basePrice)/heal/sellable`。`item_011 どくけしそう`(antidote)追加。買える=heal/antidote。
+- `items.csv`: 11種。`category(heal/antidote/material/currency/collectible)/cure_poison/price(=basePrice)/heal/shop_buyable/sellable`。`item_011 どくけしそう`(antidote)追加。買える=`shop_buyable=1`、売れる=`sellable=1`。
 - `inns.csv`/`shops.csv`: 9地域×各5件(宿屋45・道具屋45)。既存スポット近傍の概算座標(ゲーム名+地域名)。**川越豊田・高野口は基準スポット無しの概算=要・実地点ピン確認**。
 - 反映2経路: seed→DB(サーバー権威) と CSV直配信(フロント近接/マーカー)。編集時は `npm run seed` と `cp -r data /var/www/game/` の**両方**が必要。
 
