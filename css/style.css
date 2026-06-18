@@ -246,9 +246,13 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 /* ---- 戦闘 ---- */
 .battle-enemy { text-align: center; margin-bottom: 16px; }
 .enemy-img {
-  width: 130px; height: 130px;
-  image-rendering: pixelated;
-  display: block; margin: 0 auto 8px;
+  width: min(44vw, 176px);
+  height: min(44vw, 176px);
+  object-fit: contain;
+  image-rendering: auto;
+  display: block;
+  margin: 0 auto 8px;
+  filter: drop-shadow(0 10px 14px rgba(15, 23, 42, 0.22));
 }
 .enemy-name { font-size: 1.1rem; font-weight: 700; margin: 4px 0; }
 
@@ -335,6 +339,19 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 
 @media (max-width: 400px) {
   .debug-grid { grid-template-columns: 1fr; }
+  .battle-enemy { margin-bottom: 12px; }
+  .enemy-img {
+    width: min(52vw, 160px);
+    height: min(52vw, 160px);
+    margin-bottom: 6px;
+  }
+  .enemy-name { font-size: 1rem; }
+  .hp-row {
+    gap: 6px;
+    font-size: 0.8rem;
+  }
+  .hp-row > span:first-child { width: 38px; }
+  .hp-row > span:last-child { width: 62px; }
 }
 
 /* ---- 探索画面下部のアクション ---- */
