@@ -41,3 +41,18 @@ test("admin screen state is reset before a fresh login view loads", () => {
   assert.match(appJs, /setOptionalHtml\("spot-state-list", ""\)/);
   assert.match(appJs, /resetAdminScreenState\(\);\s*showAdmin\(true\);/);
 });
+
+test("master editor supports copy registration and guided field choices", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf8");
+  const appJs = fs.readFileSync(path.join(__dirname, "..", "public", "app.js"), "utf8");
+
+  assert.match(html, /btn-master-copy/);
+  assert.match(appJs, /function copyMasterAsNew\(\)/);
+  assert.match(appJs, /\/api\/admin\/master-options/);
+  assert.match(appJs, /renderReferenceSelect/);
+  assert.match(appJs, /renderDatalistInput/);
+  assert.match(appJs, /enemyId/);
+  assert.match(appJs, /rewardItemId/);
+  assert.match(appJs, /dropItemId/);
+  assert.match(appJs, /assetImages/);
+});

@@ -4,8 +4,10 @@ let spots = [];
 let selectedMaster = null;
 let masterMode = "edit";
 let currentImportPreview = null;
+let currentMasterData = null;
 const { formatLocalDateTime } = window.adminTime;
 const ADMIN_APP_VERSION = window.ADMIN_APP_VERSION || { version: "dev" };
+let masterOptions = { enemies: [], items: [], itemFieldValues: { rarity: [], type: [], category: [] }, assetImages: [] };
 let idleTimeoutSeconds = 600;
 let idleTimer = null;
 let loggedIn = false;
@@ -128,6 +130,7 @@ function resetAdminScreenState() {
   selectedMaster = null;
   masterMode = "edit";
   currentImportPreview = null;
+  currentMasterData = null;
 
   $("player-list").innerHTML = "";
   $("master-list").innerHTML = "";
@@ -177,6 +180,7 @@ async function checkLogin() {
     applyAdminMeta(await api("/api/admin/me"));
     resetAdminScreenState();
     showAdmin(true);
+    await loadMasterOptions();
     await loadPlayers();
     await loadSpots();
   } catch (e) {
@@ -191,6 +195,7 @@ async function login() {
     applyAdminMeta(await api("/api/admin/login", "POST", { loginId: $("login-id").value, password: $("login-password").value }));
     resetAdminScreenState();
     showAdmin(true);
+    await loadMasterOptions();
     await loadPlayers();
     await loadSpots();
   } catch (e) {
@@ -213,6 +218,10 @@ async function loadPlayers() {
 
 async function loadSpots() {
   spots = await api("/api/admin/spots");
+}
+
+async function loadMasterOptions() {
+  masterOptions = await api("/api/admin/master-options");
 }
 
 async function loadMasters() {
@@ -362,6 +371,19 @@ function showNewMasterForm() {
   $("master-id").textContent = type + " / ID空欄なら自動採番";
 }
 
+function copyMasterAsNew() {
+  if (!selectedMaster || !currentMasterData) return;
+  const type = selectedMaster.type;
+  const fields = MASTER_FIELDS[type];
+  const data = { ...currentMasterData };
+  data[MASTER_PRIMARY_IDS[type]] = "";
+  masterMode = "new";
+  selectedMaster = { type, id: null };
+  renderMasterDetail(type, "", fields, data);
+  $("master-title").textContent = "コピーして新規登録";
+  $("master-id").textContent = type + " / ID空欄なら自動採番";
+}
+
 async function loadPlayerDetail(playerId) {
   selectedPlayerId = playerId;
   selectedPlayer = await api("/api/admin/players/" + encodeURIComponent(playerId));
@@ -408,6 +430,7 @@ function renderItems(p) {
 }
 
 function renderMasterDetail(type, id, fields, data) {
+  currentMasterData = { ...data };
   const tpl = $("master-detail-template").content.cloneNode(true);
   $("master-detail").innerHTML = "";
   $("master-detail").appendChild(tpl);
@@ -415,6 +438,8 @@ function renderMasterDetail(type, id, fields, data) {
   $("master-id").textContent = type + " / " + id;
   const form = $("master-form");
   form.innerHTML = Object.entries(fields).map(([field, fieldType]) => renderMasterField(type, field, fieldType, data[field])).join("");
+  $("btn-master-copy").classList.toggle("hidden", masterMode === "new");
+  $("btn-master-copy").addEventListener("click", copyMasterAsNew);
   $("btn-master-save").addEventListener("click", saveMaster);
 }
 
@@ -423,9 +448,39 @@ function renderMasterField(masterType, field, fieldType, value) {
   if (fieldType === "boolean") {
     return `<label class="check-row"><input name="${escAttr(field)}" type="checkbox" ${value ? "checked" : ""} ${readonly ? "disabled" : ""}> ${esc(field)}</label>`;
   }
+  if (masterType === "spots" && field === "enemyId") {
+    return renderReferenceSelect(field, value, masterOptions.enemies || [], false, readonly);
+  }
+  if (masterType === "spots" && field === "rewardItemId") {
+    return renderReferenceSelect(field, value, masterOptions.items || [], false, readonly);
+  }
+  if (masterType === "enemies" && field === "dropItemId") {
+    return renderReferenceSelect(field, value, masterOptions.items || [], true, readonly);
+  }
+  if (masterType === "enemies" && field === "image") {
+    return renderDatalistInput(field, fieldType, value, masterOptions.assetImages || [], readonly);
+  }
+  if (masterType === "items" && ["rarity", "type", "category"].includes(field)) {
+    return renderDatalistInput(field, fieldType, value, (masterOptions.itemFieldValues && masterOptions.itemFieldValues[field]) || [], readonly);
+  }
   const inputType = fieldType === "int" || fieldType === "number" ? "number" : "text";
   const step = fieldType === "number" ? " step=\"any\"" : "";
   return `<label>${esc(field)}<input name="${escAttr(field)}" type="${inputType}"${step} value="${escAttr(value == null ? "" : value)}" ${readonly ? "readonly" : ""}></label>`;
+}
+
+function renderReferenceSelect(field, value, options, allowEmpty, readonly) {
+  const current = value == null ? "" : String(value);
+  const known = new Set(options.map((option) => String(option.id)));
+  const extra = current && !known.has(current)
+    ? `<option value="${escAttr(current)}">${esc(current)}:現在値</option>`
+    : "";
+  return `<label>${esc(field)}<select name="${escAttr(field)}" ${readonly ? "disabled" : ""}>${allowEmpty ? "<option value=\"\">(なし)</option>" : ""}${extra}${options.map((option) => `<option value="${escAttr(option.id)}" ${String(option.id) === current ? "selected" : ""}>${esc(option.id)}:${esc(option.name)}</option>`).join("")}</select></label>`;
+}
+
+function renderDatalistInput(field, fieldType, value, options, readonly) {
+  const listId = "list-" + field;
+  const inputType = fieldType === "int" || fieldType === "number" ? "number" : "text";
+  return `<label>${esc(field)}<input name="${escAttr(field)}" type="${inputType}" list="${escAttr(listId)}" value="${escAttr(value == null ? "" : value)}" ${readonly ? "readonly" : ""}><datalist id="${escAttr(listId)}">${options.map((option) => `<option value="${escAttr(option)}"></option>`).join("")}</datalist></label>`;
 }
 
 async function saveMaster() {

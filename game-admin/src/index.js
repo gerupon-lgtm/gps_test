@@ -7,6 +7,10 @@ const { z } = require("zod");
 const { prisma } = require("./db");
 const adminCsv = require("./adminCsv");
 const {
+  buildMasterOptions,
+  listAssetImages,
+} = require("./adminOptions");
+const {
   createAdminSession,
   getIdleTimeoutSeconds,
   validateAdminSession,
@@ -20,6 +24,7 @@ const ADMIN_IDLE_TIMEOUT_SECONDS = getIdleTimeoutSeconds(process.env);
 const SESSION_COOKIE = "admin_sid";
 const sessions = new Map();
 const importPreviews = new Map();
+const ASSETS_DIR = path.join(__dirname, "..", "..", "assets");
 
 const app = Fastify({ logger: true, bodyLimit: 5 * 1024 * 1024 });
 app.register(cookie, { secret: COOKIE_SECRET });
@@ -170,7 +175,11 @@ const MASTER_CONFIG = {
 };
 
 function normalizeMasterValue(type, value) {
-  if (type === "boolean") return value === true || value === "true" || value === "1" || value === 1;
+  if (type === "boolean") {
+    if (value === true || value === 1) return true;
+    const s = value == null ? "" : String(value).trim().toLowerCase();
+    return s === "true" || s === "1";
+  }
   if (type === "int") {
     const n = Number(value);
     if (!Number.isInteger(n)) throw new Error("INVALID_NUMBER");
@@ -529,6 +538,26 @@ app.get("/api/admin/facilities/proximity", requireAdmin(async (req) => {
     })),
     truncated: warnings.length > 500,
   };
+}));
+
+app.get("/api/admin/master-options", requireAdmin(async () => {
+  const [enemies, items] = await Promise.all([
+    prisma.enemyMaster.findMany({
+      where: { active: true },
+      orderBy: { enemyId: "asc" },
+      select: { enemyId: true, name: true },
+    }),
+    prisma.itemMaster.findMany({
+      where: { active: true },
+      orderBy: { itemId: "asc" },
+      select: { itemId: true, name: true, rarity: true, type: true, category: true },
+    }),
+  ]);
+  return buildMasterOptions({
+    enemies,
+    items,
+    assetImages: listAssetImages(ASSETS_DIR),
+  });
 }));
 
 app.post("/api/admin/players/:playerId/defeated-spots", requireAdmin(async (req, reply) => {
