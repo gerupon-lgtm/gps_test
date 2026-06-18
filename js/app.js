@@ -493,6 +493,7 @@ function startBattleUI(res, spotId) {
   if (!App.currentSpot || App.currentSpot.spot_id !== spotId) {
     App.currentSpot = { spot_id: spotId };
   }
+  clearBattleMessages();
   App.currentBattle = {
     enemyName: res.enemy.name,
     enemyMaxHp: res.enemy.maxHp,
@@ -510,6 +511,13 @@ function startBattleUI(res, spotId) {
   hideBattleItemList();
   renderBattle();
   showScreen("battle");
+}
+
+function clearBattleMessages() {
+  $("battle-result").textContent = "";
+  $("battle-result").className = "battle-result hidden";
+  $("battle-reward").textContent = "";
+  hide("battle-reward");
 }
 
 // 1アクションをサーバーへ送信(attack / useItem)。1アクション=1ターン。
