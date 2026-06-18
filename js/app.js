@@ -873,8 +873,20 @@ function onPoiPopupOpen(kind, id, popupEl) {
   const r = _poiInRange(kind, id);
   const btn = root.querySelector(".poi-btn");
   const hint = root.querySelector(".poi-hint");
-  if (btn) btn.classList.toggle("poi-btn-disabled", !r.ok);
-  if (hint) hint.textContent = r.ok ? "" : ("範囲外(あと約" + (isFinite(r.dist) ? Math.round(r.dist) : "?") + "m)");
+  const wallet = root.querySelector(".poi-wallet");
+  const cost = kind === "inn" ? innCost() : 0;
+  const insufficient = kind === "inn" && playerGold() < cost;
+  if (wallet) {
+    wallet.textContent = kind === "inn"
+      ? ("所持金 " + playerGold() + "G / 宿代 " + cost + "G")
+      : ("所持金 " + playerGold() + "G");
+  }
+  if (btn) btn.classList.toggle("poi-btn-disabled", !r.ok || insufficient);
+  if (hint) {
+    hint.textContent = !r.ok
+      ? ("範囲外(あと約" + (isFinite(r.dist) ? Math.round(r.dist) : "?") + "m)")
+      : (insufficient ? ("所持金不足(" + playerGold() + "G/" + cost + "G)") : "");
+  }
 }
 
 // ポップアップ内ヒントを目立たせて表示(非活性ボタンのタップ時など)
@@ -885,10 +897,26 @@ function showPoiHint(msg) {
   hint.classList.remove("flash"); void hint.offsetWidth; hint.classList.add("flash");
 }
 
+function playerGold() {
+  return Number(App.player && App.player.gold || 0);
+}
+
+function innCost() {
+  const perLevel = Number(App.player && App.player.innCostPerLevel || 5);
+  const level = Number(App.player && App.player.level || 1);
+  return level * perLevel;
+}
+
+function updateShopWallet() {
+  const el = $("shop-wallet");
+  if (el) el.textContent = "所持金 " + playerGold() + "G";
+}
+
 function onInnEnter(innId) {
   const r = _poiInRange("inn", innId);
   if (!r.obj) return;
   if (!r.ok) { showPoiHint("範囲外(あと約" + (isFinite(r.dist) ? Math.round(r.dist) : "?") + "m)"); return; }
+  if (playerGold() < innCost()) { showPoiHint("所持金不足(" + playerGold() + "G/" + innCost() + "G)"); return; }
   const inn = r.obj;
   const wasPoisoned = !!(App.player && App.player.poisoned);
   API.innRest(inn.inn_id).then((r) => {
@@ -910,6 +938,7 @@ function onShopEnter(shopId) {
   closePoiPopups();
   $("shop-area-name").textContent = shop.shop_name;
   $("shop-msg").textContent = "";
+  updateShopWallet();
   show("shop-modal");
   buildShopLists();
 }
@@ -917,10 +946,14 @@ function onShopEnter(shopId) {
 function closeShopModal() { hide("shop-confirm"); App._pendingShop = null; hide("shop-modal"); App.currentShop = null; }
 
 async function buildShopLists() {
+  updateShopWallet();
   let buy = [];
   try { buy = await API.shopItems(); } catch (e) { buy = []; }
   $("shop-buy-list").innerHTML = (buy && buy.length)
-    ? buy.map((it) => "<li><span>" + _esc(it.name) + " <span class=\"muted\">" + it.price + "G</span></span><button class=\"shop-buy-btn\" data-item=\"" + it.itemId + "\" data-name=\"" + _esc(it.name) + "\" data-price=\"" + it.price + "\">買う</button></li>").join("")
+    ? buy.map((it) => {
+      const disabled = playerGold() < Number(it.price || 0);
+      return "<li><span>" + _esc(it.name) + " <span class=\"muted\">" + it.price + "G</span></span><button class=\"shop-buy-btn\" data-item=\"" + it.itemId + "\" data-name=\"" + _esc(it.name) + "\" data-price=\"" + it.price + "\"" + (disabled ? " disabled" : "") + ">" + (disabled ? "不足" : "買う") + "</button></li>";
+    }).join("")
     : "<li class=\"muted\">商品なし</li>";
   let inv = [];
   try { inv = await API.inventory(); } catch (e) { inv = []; }
@@ -932,7 +965,7 @@ async function buildShopLists() {
 
 function onShopBuyClick(e) {
   const btn = e.target.closest(".shop-buy-btn");
-  if (!btn || !App.currentShop) return;
+  if (!btn || btn.disabled || !App.currentShop) return;
   askShopConfirm("buy", btn.dataset.item, btn.dataset.name, Number(btn.dataset.price));
 }
 
@@ -960,10 +993,12 @@ async function onShopConfirmYes() {
     if (pend.kind === "buy") {
       const r = await API.buyItem(App.currentShop.shop_id, pend.itemId, 1);
       if (App.player) App.player.gold = r.gold;
+      updateShopWallet();
       $("shop-msg").textContent = r.itemName + " を買った(残り " + r.gold + "G)";
     } else {
       const r = await API.sellItem(pend.itemId, 1);
       if (App.player) App.player.gold = r.gold;
+      updateShopWallet();
       $("shop-msg").textContent = r.itemName + " を売った(+" + r.gain + "G / 残り " + r.gold + "G)";
     }
     updateHpDisplay();
@@ -1087,7 +1122,7 @@ async function renderMarketSell() {
     ' <span class="dq-qty">x' + it.qty + '</span> <span class="dq-eff">どうぐや ' + (it.sellPrice || 0) + 'G</span></li>'
   ).join("");
   $("menu-content").innerHTML =
-    '<div class="dq-title">うるもの</div><ul class="dq-list">' + (rows || '<li class="dq-empty">うれるものがない</li>') + '</ul>' +
+    '<div class="dq-title">うるもの</div><div class="dq-wallet">所持金 ' + playerGold() + 'G</div><ul class="dq-list">' + (rows || '<li class="dq-empty">うれるものがない</li>') + '</ul>' +
     '<ul class="dq-list"><li data-cmd="market">もどる</li></ul>';
 }
 
@@ -1102,6 +1137,7 @@ async function renderMarketSellForm(itemId) {
   $("menu-content").innerHTML =
     '<div class="dq-title">いくらで だしますか？</div>' +
     '<div class="dq-stats">' +
+      '<div>所持金 ' + playerGold() + 'G</div>' +
       '<div>' + _esc(item.name) + ' x1</div>' +
       '<div>どうぐやなら ' + (item.sellPrice || 0) + 'G でうれる</div>' +
       '<label>価格 <input id="market-price" type="number" min="1" value="' + price + '"> G</label>' +
@@ -1129,6 +1165,7 @@ function renderMarketListConfirm() {
   $("menu-content").innerHTML =
     '<div class="dq-title">ほんとうに だしますか？</div>' +
     '<div class="dq-stats">' +
+      '<div>所持金 ' + playerGold() + 'G</div>' +
       '<div>' + _esc(p.itemName) + ' x1</div>' +
       '<div>買い手支払い: ' + st.buyerPays + 'G</div>' +
       '<div>手数料: ' + st.fee + 'G</div>' +
@@ -1154,22 +1191,25 @@ async function renderMarketBuy() {
   let listings = [];
   try { listings = await API.market(); } catch (e) { listings = []; }
   listings = (listings || []).filter((l) => !App.player || l.sellerId !== App.player.id);
-  const rows = listings.map((l) =>
-    '<li data-market-buy="' + _esc(l.id) + '">' + _esc(l.itemName) + ' <span class="dq-qty">x' + l.qty + '</span> <span class="dq-eff">' + l.buyerPays + 'G</span><br><span class="muted">売り手 ' + _esc(l.seller) + '</span></li>'
-  ).join("");
+  const rows = listings.map((l) => {
+    const disabled = playerGold() < Number(l.buyerPays || 0);
+    return '<li' + (disabled ? ' class="dq-dim"' : ' data-market-buy="' + _esc(l.id) + '"') + '>' + _esc(l.itemName) + ' <span class="dq-qty">x' + l.qty + '</span> <span class="dq-eff">' + l.buyerPays + 'G</span>' + (disabled ? ' <span class="dq-qty">G不足</span>' : '') + '<br><span class="muted">売り手 ' + _esc(l.seller) + '</span></li>';
+  }).join("");
   App._marketListings = listings;
   $("menu-content").innerHTML =
-    '<div class="dq-title">かう</div><ul class="dq-list">' + (rows || '<li class="dq-empty">でていない</li>') + '</ul>' +
+    '<div class="dq-title">かう</div><div class="dq-wallet">所持金 ' + playerGold() + 'G</div><ul class="dq-list">' + (rows || '<li class="dq-empty">でていない</li>') + '</ul>' +
     '<ul class="dq-list"><li data-cmd="market">もどる</li></ul>';
 }
 
 function renderMarketBuyConfirm(listingId) {
   const l = (App._marketListings || []).find((x) => x.id === listingId);
   if (!l) return renderMarketBuy();
+  if (playerGold() < Number(l.buyerPays || 0)) { $("menu-msg").textContent = "所持金が足りません"; return renderMarketBuy(); }
   App._pendingMarket = { kind: "buy", listingId: l.id };
   $("menu-content").innerHTML =
     '<div class="dq-title">ほんとうに かいますか？</div>' +
     '<div class="dq-stats">' +
+      '<div>所持金 ' + playerGold() + 'G</div>' +
       '<div>' + _esc(l.itemName) + ' x' + l.qty + '</div>' +
       '<div>支払い: ' + l.buyerPays + 'G</div>' +
       '<div>手数料: ' + l.feeAmount + 'G</div>' +

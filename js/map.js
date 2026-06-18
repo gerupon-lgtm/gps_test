@@ -162,6 +162,7 @@ function setPois(inns, shops) {
   (inns || []).forEach(function (n) {
     if (n.latitude == null || n.longitude == null) return;
     var html = '<div class="poi-popup"><b>🛏 ' + _escapeHtml(n.inn_name) + "</b><br>" +
+      '<div class="poi-wallet"></div>' +
       "<button class=\"poi-btn\" onclick=\"onInnEnter('" + n.inn_id + "')\">休む</button>" +
       '<div class="poi-hint"></div></div>';
     var mi = L.marker([n.latitude, n.longitude], { icon: _poiIcon("🛏", "#16a34a") }).bindPopup(html);
@@ -171,6 +172,7 @@ function setPois(inns, shops) {
   (shops || []).forEach(function (sh) {
     if (sh.latitude == null || sh.longitude == null) return;
     var html = '<div class="poi-popup"><b>🛒 ' + _escapeHtml(sh.shop_name) + "</b><br>" +
+      '<div class="poi-wallet"></div>' +
       "<button class=\"poi-btn\" onclick=\"onShopEnter('" + sh.shop_id + "')\">入店</button>" +
       '<div class="poi-hint"></div></div>';
     var ms = L.marker([sh.latitude, sh.longitude], { icon: _poiIcon("🛒", "#2563eb") }).bindPopup(html);

@@ -576,12 +576,15 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 .shop-buy-btn, .shop-sell-btn { font-size: 0.72rem; padding: 0.2rem 0.5rem; border: 0; border-radius: 5px; color: #fff; cursor: pointer; }
 .shop-buy-btn { background: #2563eb; }
 .shop-sell-btn { background: #6b7280; }
+.shop-buy-btn:disabled { background: #64748b; opacity: 0.7; cursor: not-allowed; }
+.shop-wallet { margin: 0 0 0.45rem; color: #fcd34d; font-weight: 700; font-size: 0.9rem; }
 
 /* ===== POIアイコン / 凡例 / 道具屋モーダル ===== */
 .poi-icon { background: transparent; border: 0; }
 .poi-pin { width: 34px; height: 34px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 18px; border: 3px solid #888; box-shadow: 0 1px 6px rgba(0,0,0,0.5); }
 .poi-popup { text-align: center; min-width: 110px; }
 .poi-popup .poi-btn { margin-top: 6px; padding: 0.35rem 0.9rem; border: 0; border-radius: 6px; background: #2563eb; color: #fff; cursor: pointer; font-size: 0.85rem; }
+.poi-popup .poi-wallet { margin-top: 4px; color: #92400e; font-size: 0.78rem; font-weight: 700; white-space: nowrap; }
 .poi-legend { display: flex; gap: 0.8rem; align-items: center; font-size: 0.8rem; color: #f1f5f9; margin: 0.3rem 0; }
 .poi-legend .muted, .poi-legend .small { color: #cbd5e1 !important; }
 .poi-legend .lg-item { display: inline-flex; align-items: center; gap: 0.2rem; }
@@ -646,6 +649,7 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 .dq-qty { color: #cbd5e1; font-size: 0.85em; }
 .dq-eff { color: #86efac; font-size: 0.85em; }
 .dq-stats div { padding: 2px 0; }
+.dq-wallet { color: #fcd34d; font-weight: 700; margin: 2px 0 6px; font-size: 0.9rem; }
 .market-fee-row {
   display: flex;
   align-items: center;
