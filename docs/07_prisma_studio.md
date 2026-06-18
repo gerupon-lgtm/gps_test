@@ -57,7 +57,7 @@ http://localhost:5555
 - `BattleSession`: 進行中の戦闘
 - `SpotMaster`: スポットマスタ
 - `EnemyMaster`: 敵マスタ
-- `ItemMaster`: アイテムマスタ
+- `ItemMaster`: アイテムマスタ。`shopBuyable` は道具屋の商品一覧に並ぶか、`sellable` は道具屋へ売却できるか
 - `InnMaster`: 宿屋マスタ
 - `ShopMaster`: 道具屋マスタ
 - `PostalAreaMaster`: 地域/称号用マスタ

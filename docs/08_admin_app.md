@@ -174,7 +174,7 @@ sudo systemctl reload caddy
 - `assetsVersion`: `index.html` のCSS/JS読み込みクエリに使うキャッシュバスター
 - `releasedAt`: リリース日
 
-管理アプリを修正してリリースする場合は、`version` と `assetsVersion` を同じ値でインクリメントします。現在の管理アプリは `0.1.7` です。
+管理アプリを修正してリリースする場合は、`version` と `assetsVersion` を同じ値でインクリメントします。現在の管理アプリは `0.1.8` です。
 
 ## CSV入出力
 
@@ -240,6 +240,7 @@ sudo systemctl reload caddy
 - スポットの `enemyId` は有効な敵マスタから `id:name` 表示で選択する
 - スポットの `rewardItemId` は有効なアイテムマスタから `id:name` 表示で選択する
 - アイテムの `rarity` / `type` / `category` は既存の有効アイテムから候補表示しつつ、手入力もできる
+- アイテムの `shopBuyable` は道具屋で販売されるか、`sellable` は道具屋へ売却できるかを表す
 - 敵の `dropItemId` は有効なアイテムマスタから `id:name` 表示で選択する。空欄も選べる
 - 敵の `image` は `assets/` 配下の画像ファイルパスを候補表示しつつ、手入力もできる
 - 新規登録時のスポット/宿屋/道具屋は近接警告件数を表示する
