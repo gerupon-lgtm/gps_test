@@ -440,7 +440,7 @@ POST /api/items/use
 
 - 認証: `POST /api/auth/register|login|logout`, `GET /api/me`(HP/Lv/EXP/gold/毒/戦闘不能/innCostPerLevel 等を返す)
 - 位置: `POST /api/location`(散策拾い抽選を内包), `POST /api/location/share`
-- 戦闘(ターン制・サーバー権威): `POST /api/battle/start`, `POST /api/battle/action`(attack|useItem), `GET /api/battle/current`(復帰)。※旧 `POST /api/battle`(一括)は残置・未使用
+- 戦闘(ターン制・サーバー権威): `POST /api/battle/start`, `POST /api/battle/action`(attack|useItem|flee), `GET /api/battle/current`(復帰)。※旧 `POST /api/battle`(一括)は残置・未使用
 - 回復/状態: `POST /api/item/use`(回復/毒消し), `GET /api/spot-states`(クールダウン)
 - 宿屋: `GET /api/inns`, `POST /api/inn/rest`(費用=level×INN_COST_PER_LEVEL)
 - 道具屋: `GET /api/shops`, `GET /api/shop/items`, `POST /api/shop/buy`, `POST /api/shop/sell`

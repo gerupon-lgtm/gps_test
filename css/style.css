@@ -271,6 +271,7 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 .battle-result { text-align: center; font-size: 1.4rem; font-weight: 800; margin: 12px 0; }
 .battle-result.win { color: var(--green); }
 .battle-result.lose { color: var(--red); }
+.battle-result.flee { color: #fcd34d; }
 .battle-reward {
   text-align: center;
   background: var(--panel);

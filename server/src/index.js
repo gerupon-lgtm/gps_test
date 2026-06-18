@@ -741,9 +741,9 @@ app.post("/api/battle/start", requireAuth(async (req, reply) => {
   }
 }));
 
-// 戦闘の1アクション(attack / useItem)。1アクション=1ターン。
+// 戦闘の1アクション(attack / useItem / flee)。attack/useItem は1アクション=1ターン、flee は即終了。
 app.post("/api/battle/action", requireAuth(async (req, reply) => {
-  const schema = z.object({ action: z.enum(["attack", "useItem"]), itemId: z.string().optional() });
+  const schema = z.object({ action: z.enum(["attack", "useItem", "flee"]), itemId: z.string().optional() });
   const p = schema.safeParse(req.body);
   if (!p.success) return reply.code(400).send({ error: "入力が不正です" });
   const playerId = req.player.id;
@@ -763,6 +763,14 @@ app.post("/api/battle/action", requireAuth(async (req, reply) => {
       const healAt0 = st0.healAt;
       let ehp = session.enemyHp;
       const logs = [];
+
+      if (p.data.action === "flee") {
+        await tx.player.update({ where: { id: playerId }, data: { hp: php, healAt: healAt0, poisoned, poisonTickAt } });
+        await tx.battleLog.create({ data: { playerId, enemyId: enemy.enemyId, spotId: spot.spotId, result: "flee" } });
+        await tx.battleSession.delete({ where: { playerId } });
+        logs.push("プレイヤーは逃げ出した");
+        return { finished: true, result: "flee", logs, playerHp: php, enemyHp: ehp, poisoned };
+      }
 
       if (p.data.action === "useItem") {
         if (!p.data.itemId) throw new Error("NO_ITEM");

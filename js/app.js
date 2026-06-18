@@ -86,6 +86,7 @@ function bindEvents() {
   });
   $("btn-attack").addEventListener("click", onAttack);
   $("btn-use-item").addEventListener("click", onUseItemInBattle);
+  $("btn-flee").addEventListener("click", onFlee);
   $("battle-item-list").addEventListener("click", onBattleItemClick);
   $("btn-battle-back").addEventListener("click", () => {
     returnToExploreFromBattle();
@@ -518,6 +519,7 @@ async function doBattleAction(action, itemId) {
   b.busy = true;
   $("btn-attack").disabled = true;
   $("btn-use-item").disabled = true;
+  $("btn-flee").disabled = true;
   hideBattleItemList();
   let r;
   try {
@@ -543,6 +545,7 @@ async function doBattleAction(action, itemId) {
     b.result = r.result;
     if (App.player) App.player.hp = r.playerHp;
     if (r.result === "win") handleWin(r.win);
+    else if (r.result === "flee") handleFlee(r);
     else handleLose(r);
     renderBattle();
     updateHpDisplay();
@@ -555,6 +558,7 @@ async function doBattleAction(action, itemId) {
 }
 
 function onAttack() { doBattleAction("attack"); }
+function onFlee() { doBattleAction("flee"); }
 
 // 戦闘中の回復アイテム選択リストを開閉
 async function onUseItemInBattle() {
@@ -639,10 +643,12 @@ function renderBattle() {
   if (b.finished) {
     $("btn-attack").disabled = true;
     $("btn-use-item").disabled = true;
+    $("btn-flee").disabled = true;
     hide("btn-use-item");
+    hide("btn-flee");
     hideBattleItemList();
-    $("battle-result").textContent = b.result === "win" ? "勝利!" : "敗北...";
-    $("battle-result").className = "battle-result " + (b.result === "win" ? "win" : "lose");
+    $("battle-result").textContent = b.result === "win" ? "勝利!" : (b.result === "flee" ? "にげだした" : "敗北...");
+    $("battle-result").className = "battle-result " + (b.result === "win" ? "win" : (b.result === "flee" ? "flee" : "lose"));
     show("battle-result");
     show("btn-battle-back");
     if (!App.battleReturnTimer) scheduleBattleAutoReturn();
@@ -650,7 +656,9 @@ function renderBattle() {
     clearBattleReturnTimer();
     $("btn-attack").disabled = b.busy;
     $("btn-use-item").disabled = b.busy;
+    $("btn-flee").disabled = b.busy;
     show("btn-use-item");
+    show("btn-flee");
     hide("battle-result");
     hide("btn-battle-back");
   }
@@ -765,6 +773,12 @@ function handleLose(r) {
   $("battle-reward").textContent = "敗北... 戦闘不能になった";
   show("battle-reward");
   updateDownedOverlay();
+}
+
+function handleFlee(r) {
+  if (App.player && typeof r.playerHp !== "undefined") App.player.hp = r.playerHp;
+  $("battle-reward").textContent = "戦闘からにげだした。報酬はありません。";
+  show("battle-reward");
 }
 
 // ---- 戦闘不能オーバーレイ ----
