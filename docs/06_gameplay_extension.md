@@ -66,7 +66,8 @@
 - `POST /api/battle/action { action: "attack" | "useItem" | "flee", itemId? }`
   - **attack**:プレイヤー攻撃 → 敵HP減 → 敵が生存なら敵の反撃(`poisonChance` で被毒判定→`poisoned=true`)。
   - **useItem**:回復系のみ。HP回復 or 毒解除を適用し1個消費(これがそのターンのプレイヤー行動)→ 敵の反撃。
-  - **flee**:逃走。報酬・撃破履歴・戦闘不能ペナルティなしで `BattleSession` を終了する。
+  - **flee**:逃走。`BATTLE_FLEE_SUCCESS_RATE` で成功判定する。成功時は報酬・撃破履歴・戦闘不能ペナルティなしで `BattleSession` を終了する。失敗時はそのターンのプレイヤー攻撃を行わず、敵の反撃を受ける。
+  - **クリティカル**:プレイヤー攻撃・敵の反撃ともに `BATTLE_CRITICAL_RATE` で会心/痛恨判定を行い、発生時は `BATTLE_CRITICAL_MULTIPLIER` 倍のダメージにする。
   - 返却:`{ logs[], playerHp, enemyHp, poisoned, finished, result }`。1アクション=1ターン。
 - `GET /api/battle/current`:リロード復帰用。active セッションがあれば状態を返す。
 - 逃走は `POST /api/battle/action` の `action="flee"` で実装済み。
@@ -144,6 +145,9 @@ PICKUP_COOLDOWN_MIN=5     # 散策拾いのクールダウン(分)
 ANTIDOTE_BOOST=2         # 毒中の antidote 抽選倍率
 SELL_RATE=0.5            # 道具屋の売値(basePrice比)
 BATTLE_USE_RANDOM=false   # 戦闘ダメージに乱数を使うか
+BATTLE_CRITICAL_RATE=0.05 # 会心/痛恨の発生率
+BATTLE_CRITICAL_MULTIPLIER=2 # 会心/痛恨時のダメージ倍率
+BATTLE_FLEE_SUCCESS_RATE=0.65 # にげる成功率。失敗時は敵の反撃を受ける
 MARKET_FEE_FIXED=5        # マーケット成約手数料(固定G)
 MARKET_FEE_RATE=0         # マーケット成約手数料(販売価格に対する割合。初期値0%)
 MARKET_CANCEL_FEE_FIXED=5 # 出品取消手数料(固定G)
@@ -182,6 +186,8 @@ Phase A〜E を実装・デプロイ済み。本節は**実際の挙動・確定
 - 勝利: EXP=`expBase×(1±BONUS_RANGE)`、ゴールド=`goldBase×(1±BONUS_RANGE)` を加算。報酬=スポット固定 `rewardItemId` + 敵 `dropItemId` を `dropRate` 抽選(併用・クールダウン非適用)。`victoryUntil` 設定。レベルアップ判定(下記)。
 - 敗北: `hp=0`、`downedUntil=now+DOWNED_MIN`(=戦闘不能。§9.4)。
 - 戦闘中アイテム: 回復(HP)・毒消しを使用可。フロントは「攻撃／アイテム」ボタンでターン進行、サーバーの結果を反映。
+- 逃走: `flee` は確率判定。成功時は報酬・撃破履歴・戦闘不能ペナルティなしで終了、失敗時は敵の反撃を受けて戦闘継続する。反撃でHPが0になれば通常敗北と同じ戦闘不能になる。
+- クリティカル: プレイヤー攻撃は「かいしん」、敵攻撃は「つうこん」としてログ表示し、ダメージ倍率は `BATTLE_CRITICAL_MULTIPLIER` で調整する。
 
 ### 9.2 レベル・成長(数式)
 - 必要EXP(Lv→Lv+1)=`level×LEVEL_EXP_FACTOR`。超過分は繰越。
@@ -230,6 +236,7 @@ POISON_INTERVAL_SEC=30    POISON_DMG=1             ANTIDOTE_BOOST=2
 DOWNED_MIN=1              PICKUP_BASE_RATE=0.03    PICKUP_COOLDOWN_MIN=5
 SELL_RATE=0.5            INN_COST_PER_LEVEL=5
 BATTLE_USE_RANDOM=false   BATTLE_RANDOM_RANGE=0.2
+BATTLE_CRITICAL_RATE=0.05 BATTLE_CRITICAL_MULTIPLIER=2 BATTLE_FLEE_SUCCESS_RATE=0.65
 ```
 クライアント側(`js/config.js`): `CHECKIN_DISTANCE_METERS=10`、`LOCATION_REPORT_INTERVAL_MS=30000`、`BATTLE_RETURN_DELAY_MS=5000`、`MARKET_POLL_INTERVAL_MS=30000`、`MARKET_FEE_FIXED=5`、`MARKET_FEE_RATE=0`、`MARKET_CANCEL_FEE_FIXED=5`、`MARKET_CANCEL_FEE_RATE=0`。
 

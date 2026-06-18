@@ -10,6 +10,7 @@ const { z } = require("zod");
 const { prisma } = require("./db");
 const { hashPassword, verifyPassword } = require("./hash");
 const { calcMarketFee, calcMarketSettlement, normalizePayerSide } = require("./marketFees");
+const { computeBattleDamage, rollFlee } = require("./battleRules");
 
 const PORT = Number(process.env.PORT || 3000);
 const INVITE_CODE = process.env.INVITE_CODE || "friends-only";
@@ -19,6 +20,9 @@ const VICTORY_COOLDOWN_MIN = Number(process.env.VICTORY_COOLDOWN_MIN || 60); // 
 const DEFEAT_HEAL_PERCENT = Number(process.env.DEFEAT_HEAL_PERCENT || 0.3); // 敗北クールダウン後に回復するMAX割合
 const BATTLE_USE_RANDOM = String(process.env.BATTLE_USE_RANDOM || "false").toLowerCase() === "true";
 const BATTLE_RANDOM_RANGE = Number(process.env.BATTLE_RANDOM_RANGE || 0.2);
+const BATTLE_CRITICAL_RATE = Number(process.env.BATTLE_CRITICAL_RATE || 0.05);
+const BATTLE_CRITICAL_MULTIPLIER = Number(process.env.BATTLE_CRITICAL_MULTIPLIER || 2);
+const BATTLE_FLEE_SUCCESS_RATE = Number(process.env.BATTLE_FLEE_SUCCESS_RATE || 0.65);
 const MAX_TURNS = 500; // 戦闘の安全上限
 const BONUS_RANGE = Number(process.env.BONUS_RANGE || 0.2);        // EXP/ゴールドの乱数幅(±)
 const LEVEL_EXP_FACTOR = Number(process.env.LEVEL_EXP_FACTOR || 100); // 次Lv必要EXP = level×factor
@@ -318,12 +322,28 @@ function stateChanged(player, st) {
 }
 
 function computeDamage(attack, defense) {
-  let base = Math.max(1, attack - defense);
-  if (BATTLE_USE_RANDOM) {
-    const r = 1 + (Math.random() * 2 - 1) * BATTLE_RANDOM_RANGE;
-    base = Math.max(1, Math.round(base * r));
-  }
-  return base;
+  return computeDamageResult(attack, defense).damage;
+}
+
+function computeDamageResult(attack, defense) {
+  return computeBattleDamage(attack, defense, {
+    useRandom: BATTLE_USE_RANDOM,
+    randomRange: BATTLE_RANDOM_RANGE,
+    criticalRate: BATTLE_CRITICAL_RATE,
+    criticalMultiplier: BATTLE_CRITICAL_MULTIPLIER,
+  });
+}
+
+function appendAttackLog(logs, attackerName, targetName, result, criticalText) {
+  if (result.critical) logs.push(criticalText);
+  logs.push(attackerName + "の攻撃! " + targetName + "に" + result.damage + "ダメージ");
+}
+
+function applyEnemyAttack(logs, enemy, player, playerHp) {
+  const result = computeDamageResult(enemy.attack, player.defense);
+  const hp = Math.max(0, playerHp - result.damage);
+  appendAttackLog(logs, enemy.name, "プレイヤー", result, enemy.name + "のつうこんのいちげき!");
+  return { hp, result };
 }
 
 // 永続HPから決定論(または乱数)で全ターンを計算。1ターン=プレイヤー攻撃→(敵生存なら)敵攻撃。
@@ -334,17 +354,16 @@ function simulateBattle(startHp, player, enemy) {
   let result = null;
   for (let t = 0; t < MAX_TURNS; t++) {
     const logs = [];
-    const d1 = computeDamage(player.attack, enemy.defense);
-    ehp = Math.max(0, ehp - d1);
-    logs.push("プレイヤーの攻撃! " + enemy.name + "に" + d1 + "ダメージ");
+    const a1 = computeDamageResult(player.attack, enemy.defense);
+    ehp = Math.max(0, ehp - a1.damage);
+    appendAttackLog(logs, "プレイヤー", enemy.name, a1, "かいしんのいちげき!");
     if (ehp <= 0) {
       result = "win"; logs.push("勝利!");
       turns.push({ logs, playerHp: php, enemyHp: ehp });
       break;
     }
-    const d2 = computeDamage(enemy.attack, player.defense);
-    php = Math.max(0, php - d2);
-    logs.push(enemy.name + "の攻撃! プレイヤーに" + d2 + "ダメージ");
+    const enemyAttack = applyEnemyAttack(logs, enemy, player, php);
+    php = enemyAttack.hp;
     if (php <= 0) {
       result = "lose"; logs.push("敗北...");
       turns.push({ logs, playerHp: php, enemyHp: ehp });
@@ -794,13 +813,19 @@ app.post("/api/battle/action", requireAuth(async (req, reply) => {
       const healAt0 = st0.healAt;
       let ehp = session.enemyHp;
       const logs = [];
+      let skipPlayerAttack = false;
 
       if (p.data.action === "flee") {
-        await tx.player.update({ where: { id: playerId }, data: { hp: php, healAt: healAt0, poisoned, poisonTickAt } });
-        await tx.battleLog.create({ data: { playerId, enemyId: enemy.enemyId, spotId: spot.spotId, result: "flee" } });
-        await tx.battleSession.delete({ where: { playerId } });
-        logs.push("プレイヤーは逃げ出した");
-        return { finished: true, result: "flee", logs, playerHp: php, enemyHp: ehp, poisoned };
+        logs.push("プレイヤーはにげだした!");
+        if (rollFlee({ successRate: BATTLE_FLEE_SUCCESS_RATE })) {
+          await tx.player.update({ where: { id: playerId }, data: { hp: php, healAt: healAt0, poisoned, poisonTickAt } });
+          await tx.battleLog.create({ data: { playerId, enemyId: enemy.enemyId, spotId: spot.spotId, result: "flee" } });
+          await tx.battleSession.delete({ where: { playerId } });
+          logs.push("うまくにげきれた!");
+          return { finished: true, result: "flee", logs, playerHp: php, enemyHp: ehp, poisoned };
+        }
+        logs.push("しかし まわりこまれてしまった!");
+        skipPlayerAttack = true;
       }
 
       if (p.data.action === "useItem") {
@@ -817,10 +842,10 @@ app.post("/api/battle/action", requireAuth(async (req, reply) => {
         if (inv.qty === 1) await tx.playerItem.delete({ where: { id: inv.id } });
         else await tx.playerItem.update({ where: { id: inv.id }, data: { qty: inv.qty - 1 } });
         logs.push(item.name + "を使った(" + msgs.join("、") + ")");
-      } else {
-        const d1 = computeDamage(player.attack, enemy.defense);
-        ehp = Math.max(0, ehp - d1);
-        logs.push("プレイヤーの攻撃! " + enemy.name + "に" + d1 + "ダメージ");
+      } else if (!skipPlayerAttack) {
+        const a1 = computeDamageResult(player.attack, enemy.defense);
+        ehp = Math.max(0, ehp - a1.damage);
+        appendAttackLog(logs, "プレイヤー", enemy.name, a1, "かいしんのいちげき!");
       }
 
       // 敵撃破=勝利
@@ -833,9 +858,8 @@ app.post("/api/battle/action", requireAuth(async (req, reply) => {
       }
 
       // 敵の反撃
-      const d2 = computeDamage(enemy.attack, player.defense);
-      php = Math.max(0, php - d2);
-      logs.push(enemy.name + "の攻撃! プレイヤーに" + d2 + "ダメージ");
+      const enemyAttack = applyEnemyAttack(logs, enemy, player, php);
+      php = enemyAttack.hp;
       if (!poisoned && enemy.poisonChance > 0 && Math.random() < enemy.poisonChance) {
         poisoned = true; poisonTickAt = new Date();
         logs.push("毒におかされた!");

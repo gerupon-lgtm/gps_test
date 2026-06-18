@@ -71,6 +71,8 @@ npx prisma db push
 
 ## VMでのセットアップ
 
+日常的な反映手順は `docs/11_deploy_patterns.md` の「パターンE: 管理アプリ反映」も参照してください。
+
 ```bash
 cd ~/app/game/game-admin
 npm install

@@ -32,7 +32,8 @@ PostgreSQL
 - 認証はCookieセッションで管理する。
 - 戦闘、報酬、HP/毒/レベル、宿屋、道具屋、マーケットはサーバー権威で処理する。
 - 道具屋の商品一覧は `ItemMaster.shopBuyable`、売却可否は `ItemMaster.sellable` で分離して管理する。
-- 戦闘アクションは `attack` / `useItem` / `flee`。逃走は報酬・ペナルティなしで `BattleSession` を終了する。
+- 戦闘アクションは `attack` / `useItem` / `flee`。逃走は確率成功で、成功時は報酬・ペナルティなしで `BattleSession` を終了し、失敗時は敵の反撃を受ける。
+- 戦闘ダメージはサーバー側で会心/痛恨のクリティカル判定を行う。
 - `Player.defeatedSpots` と `PlayerSpotState.victoryUntil` で撃破履歴とクールダウンを扱う。
 - スポット一覧では、永続履歴に基づく「撃破済み」バッジと、クールダウン中の「撃破済み 残り○分」を表示する。
 - マーケットは `MarketListing` と `MarketFeeLedger` で出品・決済・手数料を管理する。
