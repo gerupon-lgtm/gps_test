@@ -24,3 +24,4 @@ enemy_022,こんまる,40,12,3,assets/enemy_fox_kon.svg,17,14,item_009,0.08,0
 enemy_023,のこタートル,58,10,7,assets/enemy_turtle_noko.svg,24,19,item_010,0.06,0
 enemy_024,るるクラゲ,33,11,2,assets/enemy_jelly_lulu.svg,15,12,item_005,0.15,0.22
 enemy_025,ほこふくろう,50,12,6,assets/enemy_owl_hoko.svg,23,18,item_004,0.09,0
+enemy_026,ひねキング,62,13,6,assets/enemy_hineking.svg,27,24,item_004,0.10,0
