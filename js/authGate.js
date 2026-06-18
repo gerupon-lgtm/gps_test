@@ -60,6 +60,27 @@ const AuthGate = {
       tabReg.onclick = showReg;
 
       const v = (id) => document.getElementById(id).value.trim();
+      const avatarSrc = (value) => {
+        const src = String(value || "assets/avatar_dog_bold_2.png").trim();
+        if (/^(https?:)?\/\//.test(src) || src.startsWith("/") || src.startsWith("./")) return src;
+        return "./" + src.replace(/^\/+/, "");
+      };
+      const syncAvatarPreview = () => {
+        const select = document.getElementById("auth-reg-avatar");
+        const preview = document.getElementById("auth-reg-avatar-preview");
+        if (!select || !preview) return;
+        preview.src = avatarSrc(select.value);
+      };
+      const loadAvatarOptions = async () => {
+        const select = document.getElementById("auth-reg-avatar");
+        if (!select) return;
+        let data = null;
+        try { data = await API.avatarOptions(); } catch (e) { data = null; }
+        const avatars = data && Array.isArray(data.avatars) && data.avatars.length ? data.avatars : ["assets/avatar_dog_bold_2.png"];
+        select.innerHTML = avatars.map((avatar) => '<option value="' + avatar + '">' + avatar.replace(/^assets\//, "") + "</option>").join("");
+        select.value = data && data.defaultAvatar ? data.defaultAvatar : avatars[0];
+        syncAvatarPreview();
+      };
       const finish = async () => {
         this.player = await API.me();
         ov.classList.add("hidden");
@@ -67,6 +88,8 @@ const AuthGate = {
         this._bindLogout();
         resolve(this.player);
       };
+      document.getElementById("auth-reg-avatar").onchange = syncAvatarPreview;
+      loadAvatarOptions();
 
       document.getElementById("auth-login-btn").onclick = async () => {
         msg.textContent = "ログイン中...";
@@ -78,7 +101,7 @@ const AuthGate = {
       document.getElementById("auth-register-btn").onclick = async () => {
         msg.textContent = "登録中...";
         try {
-          await API.register(v("auth-reg-id"), v("auth-reg-pw"), v("auth-reg-name"), v("auth-reg-invite"));
+          await API.register(v("auth-reg-id"), v("auth-reg-pw"), v("auth-reg-name"), v("auth-reg-invite"), v("auth-reg-avatar"));
           await finish();
         } catch (e) { msg.textContent = e.message; }
       };

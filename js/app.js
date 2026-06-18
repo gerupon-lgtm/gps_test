@@ -217,7 +217,7 @@ function updateExplore(pos) {
   $("cur-source").textContent = pos.mock ? "モック(テスト)" : "実GPS";
 
   // 地図に現在地を反映(スポットは地図に出さない)
-  updateMapPosition(pos.latitude, pos.longitude, pos.accuracy);
+  updateMapPosition(pos.latitude, pos.longitude, pos.accuracy, App.player && App.player.avatar);
 
   if (!App.data || App.data.spots.length === 0) {
     setNearestName("-");

@@ -475,9 +475,12 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 .auth-form { display: flex; flex-direction: column; gap: 0.5rem; }
 .auth-form.hidden { display: none; }
 .auth-form label { font-size: 0.78rem; color: #475569; display: flex; flex-direction: column; gap: 0.2rem; }
-.auth-form input {
+.auth-form input, .auth-form select {
   padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem;
 }
+.auth-avatar-picker { display: grid; grid-template-columns: 60px 1fr; gap: 0.6rem; align-items: end; }
+.auth-avatar-preview { width: 52px; height: 52px; object-fit: contain; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; padding: 4px; }
+.auth-avatar-note { grid-column: 2; margin-top: -0.35rem; font-size: 0.68rem; color: #64748b; }
 .auth-form .btn { margin-top: 0.4rem; }
 .auth-msg { font-size: 0.8rem; color: #dc2626; min-height: 1.2rem; margin: 0.6rem 0 0; }
 

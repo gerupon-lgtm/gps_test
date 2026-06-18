@@ -24,8 +24,9 @@ async function _api(path, method, body) {
 
 const API = {
   me: () => _api("/api/me", "GET"),
-  register: (loginId, password, name, inviteCode) =>
-    _api("/api/auth/register", "POST", { loginId, password, name, inviteCode }),
+  register: (loginId, password, name, inviteCode, avatar) =>
+    _api("/api/auth/register", "POST", { loginId, password, name, inviteCode, avatar }),
+  avatarOptions: () => _api("/api/avatar-options", "GET"),
   login: (loginId, password) => _api("/api/auth/login", "POST", { loginId, password }),
   logout: () => _api("/api/auth/logout", "POST"),
   postLocation: (lat, lng) => _api("/api/location", "POST", { lat, lng }),

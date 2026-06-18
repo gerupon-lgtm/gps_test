@@ -260,3 +260,10 @@ sudo systemctl reload caddy
 - プレイヤー画像はゲーム本体の `/api/me` とHUD表示にも反映する。
 - 敵マスタの `image` は `assets/` 配下の画像候補から選択でき、編集画面で選択中の画像をプレビュー表示する。
 - `Player.avatar` 追加後の反映には `server/prisma/schema.prisma` のDB反映が必要。デプロイ時は `cd ~/app/game/server && npx prisma db push` と Prisma Client 再生成を行う。
+
+## 2026-06-18 登録時キャラクター選択追記
+
+- 新規登録画面でもキャラクター画像を選択できる。候補は `/api/avatar-options` から取得する。
+- 候補対象は `assets/` 配下でファイル名が `avatar_` から始まる `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`。
+- 登録時に選んだ画像は `Player.avatar` に保存し、HUDとフィールド上の自分キャラに反映する。
+- 登録APIに範囲外の画像パスが渡された場合は、`assets/avatar_dog_bold_2.png` を保存する。

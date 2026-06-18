@@ -4,6 +4,8 @@
 // =====================================================
 const Fastify = require("fastify");
 const cookie = require("@fastify/cookie");
+const fs = require("fs");
+const path = require("path");
 const { z } = require("zod");
 const { prisma } = require("./db");
 const { hashPassword, verifyPassword } = require("./hash");
@@ -38,9 +40,30 @@ const MARKET_FEE_RATE = Number(process.env.MARKET_FEE_RATE || 0);
 const MARKET_CANCEL_FEE_FIXED = Number(process.env.MARKET_CANCEL_FEE_FIXED || 5);
 const MARKET_CANCEL_FEE_RATE = Number(process.env.MARKET_CANCEL_FEE_RATE || 0);
 const MARKET_RESPECT_SELLABLE = String(process.env.MARKET_RESPECT_SELLABLE || "false").toLowerCase() === "true";
+const DEFAULT_AVATAR = "assets/avatar_dog_bold_2.png";
+const ASSETS_DIR = path.join(__dirname, "..", "..", "assets");
+const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
 
 const app = Fastify({ logger: true });
 app.register(cookie, { secret: process.env.SESSION_SECRET || "dev-secret" });
+
+function listAvatarImages() {
+  if (!fs.existsSync(ASSETS_DIR)) return [DEFAULT_AVATAR];
+  const avatars = fs.readdirSync(ASSETS_DIR, { withFileTypes: true })
+    .filter((entry) =>
+      entry.isFile() &&
+      /^avatar_/i.test(entry.name) &&
+      IMAGE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())
+    )
+    .map((entry) => `assets/${entry.name}`)
+    .sort();
+  return avatars.length ? avatars : [DEFAULT_AVATAR];
+}
+
+function normalizeAvatarPath(value) {
+  const avatar = String(value || "").trim();
+  return listAvatarImages().includes(avatar) ? avatar : DEFAULT_AVATAR;
+}
 
 // ---- 認証ヘルパー ----
 async function getPlayerFromReq(req) {
@@ -75,6 +98,11 @@ function setSessionCookie(reply, sid) {
 // ---- ヘルスチェック ----
 app.get("/api/health", async () => ({ ok: true, time: new Date().toISOString() }));
 
+app.get("/api/avatar-options", async () => ({
+  avatars: listAvatarImages(),
+  defaultAvatar: DEFAULT_AVATAR,
+}));
+
 // ---- 認証 ----
 app.post("/api/auth/register", async (req, reply) => {
   const schema = z.object({
@@ -82,10 +110,12 @@ app.post("/api/auth/register", async (req, reply) => {
     password: z.string().min(8).max(200),
     name: z.string().min(1).max(40),
     inviteCode: z.string(),
+    avatar: z.string().max(200).optional(),
   });
   const p = schema.safeParse(req.body);
   if (!p.success) return reply.code(400).send({ error: "入力が不正です", detail: p.error.issues });
   const { loginId, password, name, inviteCode } = p.data;
+  const avatar = normalizeAvatarPath(p.data.avatar);
   if (inviteCode !== INVITE_CODE) return reply.code(403).send({ error: "招待コードが違います" });
 
   const exists = await prisma.user.findUnique({ where: { loginId } });
@@ -95,7 +125,7 @@ app.post("/api/auth/register", async (req, reply) => {
     const u = await tx.user.create({
       data: { loginId, passwordHash: hashPassword(password) },
     });
-    await tx.player.create({ data: { userId: u.id, name, gold: START_GOLD } });
+    await tx.player.create({ data: { userId: u.id, name, avatar, gold: START_GOLD } });
     return u;
   });
 
@@ -184,7 +214,7 @@ app.get("/api/me", requireAuth(async (req) => {
   const titles = await generateTitles(pl);
   return {
     id: pl.id, name: pl.name, level: pl.level, exp: pl.exp,
-    avatar: pl.avatar || "assets/avatar_dog_bold_2.png",
+    avatar: pl.avatar || DEFAULT_AVATAR,
     hp: pl.hp, maxHp: pl.maxHp, attack: pl.attack, defense: pl.defense, gold: pl.gold,
     shareLocation: pl.shareLocation, healAt: pl.healAt, downedUntil: pl.downedUntil, poisoned: pl.poisoned,
     nextExp: pl.level * LEVEL_EXP_FACTOR, innCostPerLevel: INN_COST_PER_LEVEL, titles,
@@ -503,7 +533,7 @@ app.get("/api/players/nearby", requireAuth(async (req) => {
     orderBy: { lastSeenAt: "desc" },
     take: 200,
   });
-  return players.map((p) => ({ name: p.name, avatar: p.avatar || "assets/avatar_dog_bold_2.png", level: p.level, lat: p.lastLat, lng: p.lastLng, lastSeenAt: p.lastSeenAt }));
+  return players.map((p) => ({ name: p.name, avatar: p.avatar || DEFAULT_AVATAR, level: p.level, lat: p.lastLat, lng: p.lastLng, lastSeenAt: p.lastSeenAt }));
 }));
 
 // 宿屋マスタ一覧

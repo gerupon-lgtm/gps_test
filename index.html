@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <title>GPS連動ブラウザゲーム 検証版</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
-  <link rel="stylesheet" href="./css/style.css?v=27" />
+  <link rel="stylesheet" href="./css/style.css?v=28" />
 </head>
 <body>
   <div id="auth-overlay" class="auth-overlay hidden">
@@ -24,6 +24,13 @@
         <label>ログインID(3-20文字)<input id="auth-reg-id" autocomplete="username"></label>
         <label>パスワード(8文字以上)<input id="auth-reg-pw" type="password" autocomplete="new-password"></label>
         <label>表示名<input id="auth-reg-name"></label>
+        <div class="auth-avatar-picker">
+          <img id="auth-reg-avatar-preview" class="auth-avatar-preview" alt="選択中のキャラ">
+          <label>キャラ
+            <select id="auth-reg-avatar" aria-describedby="auth-reg-avatar-options"></select>
+          </label>
+          <span id="auth-reg-avatar-options" class="auth-avatar-note">assets/avatar_ の画像から選択</span>
+        </div>
         <label>招待コード<input id="auth-reg-invite"></label>
         <button id="auth-register-btn" class="btn">登録する</button>
       </div>
@@ -233,15 +240,15 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <script src="./js/config.js?v=10"></script>
-  <script src="./js/api.js?v=7"></script>
-  <script src="./js/authGate.js?v=2"></script>
+  <script src="./js/api.js?v=8"></script>
+  <script src="./js/authGate.js?v=3"></script>
   <script src="./js/distance.js?v=3"></script>
   <script src="./js/csvLoader.js?v=7"></script>
   <script src="./js/geo.js?v=3"></script>
   <script src="./js/battle.js?v=3"></script>
   <script src="./js/storage.js?v=4"></script>
   <script src="./js/map-key.js?v=3"></script>
-  <script src="./js/map.js?v=15"></script>
-  <script src="./js/app.js?v=34"></script>
+  <script src="./js/map.js?v=16"></script>
+  <script src="./js/app.js?v=35"></script>
 </body>
 </html>
