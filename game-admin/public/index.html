@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GPSゲーム 管理</title>
-  <link rel="stylesheet" href="./style.css?v=0.1.8">
+  <link rel="stylesheet" href="./style.css?v=0.1.9">
 </head>
 <body>
   <header>
@@ -117,6 +117,15 @@
       <button id="btn-clear-sessions">セッション削除</button>
     </div>
     <p id="detail-msg" class="msg"></p>
+    <h3>プレイヤー画像</h3>
+    <div class="avatar-edit">
+      <img id="player-avatar-preview" class="image-preview hidden" alt="player avatar preview">
+      <label>avatar
+        <input id="player-avatar-select" list="player-avatar-options">
+        <datalist id="player-avatar-options"></datalist>
+      </label>
+      <button id="btn-save-avatar" type="button">画像保存</button>
+    </div>
     <h3>撃破済みスポット編集</h3>
     <div class="spot-edit">
       <select id="spot-select"></select>
@@ -144,8 +153,8 @@
     <p id="master-msg" class="msg"></p>
   </template>
 
-  <script src="./adminVersion.js?v=0.1.8"></script>
-  <script src="./adminTime.js?v=0.1.8"></script>
-  <script src="./app.js?v=0.1.8"></script>
+  <script src="./adminVersion.js?v=0.1.9"></script>
+  <script src="./adminTime.js?v=0.1.9"></script>
+  <script src="./app.js?v=0.1.9"></script>
 </body>
 </html>

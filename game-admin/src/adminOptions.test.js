@@ -16,7 +16,7 @@ test("builds active master options and item field suggestions", () => {
       { itemId: "item_001", name: "Potion", rarity: "normal", type: "consumable", category: "heal" },
       { itemId: "item_002", name: "Antidote", rarity: "normal", type: "consumable", category: "cure" },
     ],
-    assetImages: ["assets/enemy_slime.png"],
+    assetImages: ["assets/enemy_slime.png", "assets/avatar_hero.png"],
   });
 
   assert.deepEqual(options.enemies, [{ id: "enemy_001", name: "Slime" }]);
@@ -27,7 +27,8 @@ test("builds active master options and item field suggestions", () => {
   assert.deepEqual(options.itemFieldValues.rarity, ["normal"]);
   assert.deepEqual(options.itemFieldValues.type, ["consumable"]);
   assert.deepEqual(options.itemFieldValues.category, ["cure", "heal"]);
-  assert.deepEqual(options.assetImages, ["assets/enemy_slime.png"]);
+  assert.deepEqual(options.assetImages, ["assets/avatar_hero.png", "assets/enemy_slime.png"]);
+  assert.deepEqual(options.avatarImages, ["assets/avatar_hero.png"]);
 });
 
 test("lists image assets as admin-selectable asset paths", () => {

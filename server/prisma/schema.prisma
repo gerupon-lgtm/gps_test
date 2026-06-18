@@ -33,6 +33,7 @@ model Player {
   userId    String   @unique
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   name      String
+  avatar    String   @default("assets/avatar_dog_bold_2.png")
   level     Int      @default(1)
   exp       Int      @default(0)
   hp        Int      @default(100)

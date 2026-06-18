@@ -56,3 +56,19 @@ test("master editor supports copy registration and guided field choices", () => 
   assert.match(appJs, /dropItemId/);
   assert.match(appJs, /assetImages/);
 });
+
+test("admin image fields show previews and player avatar can be changed", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf8");
+  const appJs = fs.readFileSync(path.join(__dirname, "..", "public", "app.js"), "utf8");
+  const schema = fs.readFileSync(path.join(__dirname, "..", "..", "server", "prisma", "schema.prisma"), "utf8");
+
+  assert.match(schema, /avatar\s+String\s+@default/);
+  assert.match(html, /player-avatar-preview/);
+  assert.match(html, /player-avatar-select/);
+  assert.match(html, /btn-save-avatar/);
+  assert.match(appJs, /function renderImagePreview/);
+  assert.match(appJs, /function syncImagePreview/);
+  assert.match(appJs, /function savePlayerAvatar/);
+  assert.match(appJs, /\/api\/admin\/players\/.*\/avatar/);
+  assert.match(appJs, /avatarImages/);
+});

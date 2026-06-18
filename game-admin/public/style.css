@@ -46,6 +46,9 @@ button:hover { filter: brightness(1.08); }
 .actions { margin-top: 12px; }
 .actions #disable-reason { max-width: 380px; }
 .msg { min-height: 1.3em; color: #fcd34d; }
+.avatar-edit { display: grid; grid-template-columns: 80px minmax(180px, 1fr) auto; gap: 10px; align-items: end; }
+.image-preview { width: 72px; height: 72px; object-fit: contain; border: 1px solid #475569; border-radius: 8px; background: #0f172a; padding: 6px; }
+.master-form .image-preview { align-self: end; margin-top: 4px; }
 .spot-edit { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr auto; gap: 8px; align-items: end; }
 .master-form { display: grid; grid-template-columns: repeat(2, minmax(180px, 1fr)); gap: 8px 12px; }
 .master-form .check-row { display: flex; align-items: center; gap: 8px; }
@@ -62,5 +65,6 @@ button:hover { filter: brightness(1.08); }
   .grid > .card:first-child,
   .grid > .card:nth-child(2) { position: static; max-height: none; overflow-y: visible; }
   .spot-edit { grid-template-columns: 1fr; }
+  .avatar-edit { grid-template-columns: 1fr; }
   .master-form { grid-template-columns: 1fr; }
 }

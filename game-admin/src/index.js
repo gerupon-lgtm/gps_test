@@ -29,8 +29,13 @@ const ASSETS_DIR = path.join(__dirname, "..", "..", "assets");
 const app = Fastify({ logger: true, bodyLimit: 5 * 1024 * 1024 });
 app.register(cookie, { secret: COOKIE_SECRET });
 app.register(require("@fastify/static"), {
+  root: ASSETS_DIR,
+  prefix: "/assets/",
+});
+app.register(require("@fastify/static"), {
   root: path.join(__dirname, "..", "public"),
   prefix: "/",
+  decorateReply: false,
 });
 
 function requireAdmin(handler) {
@@ -439,6 +444,7 @@ app.get("/api/admin/players", requireAdmin(async () => {
     userId: p.userId,
     loginId: p.user.loginId,
     name: p.name,
+    avatar: p.avatar,
     level: p.level,
     hp: p.hp,
     maxHp: p.maxHp,
@@ -465,6 +471,7 @@ app.get("/api/admin/players/:playerId", requireAdmin(async (req, reply) => {
     userId: player.userId,
     loginId: player.user.loginId,
     name: player.name,
+    avatar: player.avatar,
     level: player.level,
     exp: player.exp,
     hp: player.hp,
@@ -486,6 +493,21 @@ app.get("/api/admin/players/:playerId", requireAdmin(async (req, reply) => {
       penaltyUntil: s.penaltyUntil,
     })),
   };
+}));
+
+app.post("/api/admin/players/:playerId/avatar", requireAdmin(async (req, reply) => {
+  const schema = z.object({ avatar: z.string().max(200).optional().default("") });
+  const p = schema.safeParse(req.body || {});
+  if (!p.success) return reply.code(400).send({ error: "入力が不正です", detail: p.error.issues });
+  const before = await prisma.player.findUnique({ where: { id: req.params.playerId } });
+  if (!before) return reply.code(404).send({ error: "プレイヤーが見つかりません" });
+  const avatar = p.data.avatar || "assets/avatar_dog_bold_2.png";
+  const after = await prisma.player.update({
+    where: { id: before.id },
+    data: { avatar },
+  });
+  await audit(req.adminName, "update_player_avatar", "Player", before.id, before, after);
+  return { ok: true, avatar: after.avatar };
 }));
 
 app.post("/api/admin/users/:userId/disabled", requireAdmin(async (req, reply) => {

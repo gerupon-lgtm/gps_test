@@ -7,7 +7,7 @@ let currentImportPreview = null;
 let currentMasterData = null;
 const { formatLocalDateTime } = window.adminTime;
 const ADMIN_APP_VERSION = window.ADMIN_APP_VERSION || { version: "dev" };
-let masterOptions = { enemies: [], items: [], itemFieldValues: { rarity: [], type: [], category: [] }, assetImages: [] };
+let masterOptions = { enemies: [], items: [], itemFieldValues: { rarity: [], type: [], category: [] }, assetImages: [], avatarImages: [] };
 let idleTimeoutSeconds = 600;
 let idleTimer = null;
 let loggedIn = false;
@@ -411,10 +411,20 @@ function renderPlayerDetail(p) {
   $("btn-disable").addEventListener("click", () => setDisabled(true));
   $("btn-enable").addEventListener("click", () => setDisabled(false));
   $("btn-clear-sessions").addEventListener("click", clearSessions);
+  $("btn-save-avatar").addEventListener("click", savePlayerAvatar);
+  $("player-avatar-select").addEventListener("input", () => syncImagePreview($("player-avatar-select"), "player-avatar-preview"));
   $("btn-save-spot").addEventListener("click", saveSpotState);
+  renderPlayerAvatarEditor(p);
   renderSpotStateList(p);
   renderItems(p);
   syncSpotForm();
+}
+
+function renderPlayerAvatarEditor(p) {
+  const options = masterOptions.avatarImages || [];
+  $("player-avatar-options").innerHTML = options.map((src) => `<option value="${escAttr(src)}"></option>`).join("");
+  $("player-avatar-select").value = p.avatar || "assets/avatar_dog_bold_2.png";
+  syncImagePreview($("player-avatar-select"), "player-avatar-preview");
 }
 
 function renderSpotStateList(p) {
@@ -442,6 +452,8 @@ function renderMasterDetail(type, id, fields, data) {
   $("btn-master-copy").classList.toggle("hidden", masterMode === "new");
   $("btn-master-copy").addEventListener("click", copyMasterAsNew);
   $("btn-master-save").addEventListener("click", saveMaster);
+  const imageInput = form.querySelector("input[name='image']");
+  if (imageInput) imageInput.addEventListener("input", () => syncImagePreview(imageInput, "master-image-preview"));
 }
 
 function renderMasterField(masterType, field, fieldType, value) {
@@ -481,7 +493,33 @@ function renderReferenceSelect(field, value, options, allowEmpty, readonly) {
 function renderDatalistInput(field, fieldType, value, options, readonly) {
   const listId = "list-" + field;
   const inputType = fieldType === "int" || fieldType === "number" ? "number" : "text";
-  return `<label>${esc(field)}<input name="${escAttr(field)}" type="${inputType}" list="${escAttr(listId)}" value="${escAttr(value == null ? "" : value)}" ${readonly ? "readonly" : ""}><datalist id="${escAttr(listId)}">${options.map((option) => `<option value="${escAttr(option)}"></option>`).join("")}</datalist></label>`;
+  const input = `<label>${esc(field)}<input name="${escAttr(field)}" type="${inputType}" list="${escAttr(listId)}" value="${escAttr(value == null ? "" : value)}" ${readonly ? "readonly" : ""}><datalist id="${escAttr(listId)}">${options.map((option) => `<option value="${escAttr(option)}"></option>`).join("")}</datalist></label>`;
+  return field === "image" ? input + renderImagePreview(value, "master-image-preview") : input;
+}
+
+function resolveAssetSrc(value) {
+  const src = String(value || "").trim();
+  if (!src) return "";
+  if (/^(https?:)?\/\//.test(src) || src.startsWith("/") || src.startsWith("./")) return src;
+  return "/" + src.replace(/^\/+/, "");
+}
+
+function renderImagePreview(value, id) {
+  const src = resolveAssetSrc(value);
+  return `<img id="${escAttr(id)}" class="image-preview${src ? "" : " hidden"}" src="${escAttr(src)}" alt="image preview">`;
+}
+
+function syncImagePreview(input, previewId) {
+  const preview = $(previewId);
+  if (!preview || !input) return;
+  const src = resolveAssetSrc(input.value);
+  if (src) {
+    preview.src = src;
+    preview.classList.remove("hidden");
+  } else {
+    preview.removeAttribute("src");
+    preview.classList.add("hidden");
+  }
 }
 
 async function saveMaster() {
@@ -532,6 +570,16 @@ async function clearSessions() {
   if (!selectedPlayer) return;
   const r = await api("/api/admin/users/" + encodeURIComponent(selectedPlayer.userId) + "/sessions/clear", "POST");
   $("detail-msg").textContent = "セッションを削除しました: " + r.deleted + "件";
+}
+
+async function savePlayerAvatar() {
+  if (!selectedPlayer) return;
+  const avatar = $("player-avatar-select").value;
+  const result = await api("/api/admin/players/" + encodeURIComponent(selectedPlayer.id) + "/avatar", "POST", { avatar });
+  $("detail-msg").textContent = "画像を保存しました";
+  selectedPlayer.avatar = result.avatar;
+  await loadPlayers();
+  await loadPlayerDetail(selectedPlayer.id);
 }
 
 async function saveSpotState() {

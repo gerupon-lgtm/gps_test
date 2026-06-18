@@ -184,6 +184,7 @@ app.get("/api/me", requireAuth(async (req) => {
   const titles = await generateTitles(pl);
   return {
     id: pl.id, name: pl.name, level: pl.level, exp: pl.exp,
+    avatar: pl.avatar || "assets/avatar_dog_bold_2.png",
     hp: pl.hp, maxHp: pl.maxHp, attack: pl.attack, defense: pl.defense, gold: pl.gold,
     shareLocation: pl.shareLocation, healAt: pl.healAt, downedUntil: pl.downedUntil, poisoned: pl.poisoned,
     nextExp: pl.level * LEVEL_EXP_FACTOR, innCostPerLevel: INN_COST_PER_LEVEL, titles,
@@ -498,11 +499,11 @@ app.get("/api/defeated-spots", requireAuth(async (req) => {
 app.get("/api/players/nearby", requireAuth(async (req) => {
   const players = await prisma.player.findMany({
     where: { id: { not: req.player.id }, lastLat: { not: null }, lastLng: { not: null } },
-    select: { name: true, level: true, lastLat: true, lastLng: true, lastSeenAt: true },
+    select: { name: true, avatar: true, level: true, lastLat: true, lastLng: true, lastSeenAt: true },
     orderBy: { lastSeenAt: "desc" },
     take: 200,
   });
-  return players.map((p) => ({ name: p.name, level: p.level, lat: p.lastLat, lng: p.lastLng, lastSeenAt: p.lastSeenAt }));
+  return players.map((p) => ({ name: p.name, avatar: p.avatar || "assets/avatar_dog_bold_2.png", level: p.level, lat: p.lastLat, lng: p.lastLng, lastSeenAt: p.lastSeenAt }));
 }));
 
 // 宿屋マスタ一覧

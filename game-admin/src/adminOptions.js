@@ -15,6 +15,7 @@ function toMasterOption(row, idField) {
 }
 
 function buildMasterOptions({ enemies, items, assetImages }) {
+  const sortedAssetImages = Array.from(assetImages || []).sort();
   return {
     enemies: enemies.map((row) => toMasterOption(row, "enemyId")),
     items: items.map((row) => toMasterOption(row, "itemId")),
@@ -23,7 +24,8 @@ function buildMasterOptions({ enemies, items, assetImages }) {
       type: uniqueSorted(items.map((row) => row.type)),
       category: uniqueSorted(items.map((row) => row.category)),
     },
-    assetImages: Array.from(assetImages || []).sort(),
+    assetImages: sortedAssetImages,
+    avatarImages: sortedAssetImages.filter((imagePath) => /^assets\/avatar_/i.test(imagePath)),
   };
 }
 

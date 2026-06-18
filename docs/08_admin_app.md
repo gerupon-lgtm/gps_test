@@ -174,7 +174,7 @@ sudo systemctl reload caddy
 - `assetsVersion`: `index.html` のCSS/JS読み込みクエリに使うキャッシュバスター
 - `releasedAt`: リリース日
 
-管理アプリを修正してリリースする場合は、`version` と `assetsVersion` を同じ値でインクリメントします。現在の管理アプリは `0.1.8` です。
+管理アプリを修正してリリースする場合は、`version` と `assetsVersion` を同じ値でインクリメントします。現在の管理アプリは `0.1.9` です。
 
 ## CSV入出力
 
@@ -253,3 +253,10 @@ sudo systemctl reload caddy
 - 旧来のゲーム用CSVとは列名が異なる場合があるため、まず管理アプリからCSV出力したファイルをテンプレートにする
 - スポット追加時は `enemyId` や `rewardItemId` が既存マスタと整合しているか確認する
 - 大量更新時も「消して書く」ではなく、ID単位のupsertとして処理する
+
+## 2026-06-18 管理アプリ画像管理追記
+
+- プレイヤー詳細では `Player.avatar` を管理できる。候補は `assets/avatar_...` の画像パスで、選択中の画像をプレビュー表示してから保存する。
+- プレイヤー画像はゲーム本体の `/api/me` とHUD表示にも反映する。
+- 敵マスタの `image` は `assets/` 配下の画像候補から選択でき、編集画面で選択中の画像をプレビュー表示する。
+- `Player.avatar` 追加後の反映には `server/prisma/schema.prisma` のDB反映が必要。デプロイ時は `cd ~/app/game/server && npx prisma db push` と Prisma Client 再生成を行う。
