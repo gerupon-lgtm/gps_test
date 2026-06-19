@@ -5,6 +5,9 @@ let selectedMaster = null;
 let masterMode = "edit";
 let currentImportPreview = null;
 let currentMasterData = null;
+let currentAdminMeta = null;
+let adminUsers = [];
+let selectedAdminUser = null;
 const { formatLocalDateTime } = window.adminTime;
 const ADMIN_APP_VERSION = window.ADMIN_APP_VERSION || { version: "dev" };
 let masterOptions = { enemies: [], items: [], itemFieldValues: { rarity: [], type: [], category: [] }, assetImages: [], avatarImages: [] };
@@ -100,6 +103,9 @@ async function api(path, method = "GET", body) {
 }
 
 function applyAdminMeta(data) {
+  currentAdminMeta = data || null;
+  const canManageAdmins = data && data.adminRole === "superadmin";
+  if ($("tab-admin-users")) $("tab-admin-users").classList.toggle("hidden", !canManageAdmins);
   if (data && Number.isInteger(data.idleTimeoutSeconds) && data.idleTimeoutSeconds > 0) {
     idleTimeoutSeconds = data.idleTimeoutSeconds;
   }
@@ -132,11 +138,16 @@ function resetAdminScreenState() {
   masterMode = "edit";
   currentImportPreview = null;
   currentMasterData = null;
+  currentAdminMeta = null;
+  adminUsers = [];
+  selectedAdminUser = null;
 
   $("player-list").innerHTML = "";
   $("master-list").innerHTML = "";
+  if ($("admin-user-list")) $("admin-user-list").innerHTML = "";
   setOptionalText("player-detail", "プレイヤーを選択してください。");
   setOptionalText("master-detail", "マスタを選択してください。");
+  setOptionalText("admin-user-detail", "管理者を選択してください。");
   setOptionalHtml("spot-state-list", "");
   $("import-preview").classList.add("hidden");
   $("import-summary").textContent = "";
@@ -169,18 +180,24 @@ function showAdmin(show) {
 
 function showTab(tab) {
   const players = tab === "players";
+  const masters = tab === "masters";
+  const adminUsersTab = tab === "adminUsers";
   $("players-panel").classList.toggle("hidden", !players);
-  $("masters-panel").classList.toggle("hidden", players);
+  $("masters-panel").classList.toggle("hidden", !masters);
+  if ($("admin-users-panel")) $("admin-users-panel").classList.toggle("hidden", !adminUsersTab);
   $("tab-players").classList.toggle("active", players);
-  $("tab-masters").classList.toggle("active", !players);
-  if (!players) loadMasters();
+  $("tab-masters").classList.toggle("active", masters);
+  if ($("tab-admin-users")) $("tab-admin-users").classList.toggle("active", adminUsersTab);
+  if (masters) loadMasters();
+  if (adminUsersTab) loadAdminUsers();
 }
 
 async function checkLogin() {
   try {
-    applyAdminMeta(await api("/api/admin/me"));
+    const meta = await api("/api/admin/me");
     resetAdminScreenState();
     showAdmin(true);
+    applyAdminMeta(meta);
     await loadMasterOptions();
     await loadPlayers();
     await loadSpots();
@@ -193,9 +210,10 @@ async function checkLogin() {
 async function login() {
   $("login-msg").textContent = "";
   try {
-    applyAdminMeta(await api("/api/admin/login", "POST", { loginId: $("login-id").value, password: $("login-password").value }));
+    const meta = await api("/api/admin/login", "POST", { loginId: $("login-id").value, password: $("login-password").value });
     resetAdminScreenState();
     showAdmin(true);
+    applyAdminMeta(meta);
     await loadMasterOptions();
     await loadPlayers();
     await loadSpots();
@@ -233,6 +251,86 @@ async function loadMasters() {
   $("master-list").innerHTML = rows.map((r) =>
     `<li data-master="${escAttr(r.id)}"><div class="player-row"><span>${esc(r.label)} <span class="muted">(${esc(r.id)})</span></span><span class="badge ${r.active ? "enabled" : "disabled"}">${r.active ? "有効" : "非表示"}</span></div></li>`
   ).join("");
+}
+
+async function loadAdminUsers() {
+  if (!currentAdminMeta || currentAdminMeta.adminRole !== "superadmin") return;
+  adminUsers = await api("/api/admin/admin-users");
+  $("admin-user-list").innerHTML = adminUsers.map((u) =>
+    `<li data-admin-user="${escAttr(u.id)}"><div class="player-row"><span>${esc(u.displayName || u.loginId)} <span class="muted">(${esc(u.loginId)})</span></span><span class="badge ${u.disabled ? "disabled" : "enabled"}">${u.disabled ? "停止" : esc(u.role)}</span></div><div class="muted">${esc(u.authSource || "db")} ${esc(u.lastLoginAt ? formatLocalDateTime(u.lastLoginAt) : "未ログイン")}</div></li>`
+  ).join("");
+}
+
+function showNewAdminUserForm() {
+  selectedAdminUser = null;
+  renderAdminUserDetail({
+    id: "",
+    loginId: "",
+    displayName: "",
+    role: "admin",
+    disabled: false,
+    disabledReason: "",
+  }, true);
+}
+
+function loadAdminUserDetail(id) {
+  const row = adminUsers.find((u) => u.id === id);
+  if (!row) return;
+  selectedAdminUser = row;
+  renderAdminUserDetail(row, false);
+}
+
+function renderAdminUserDetail(user, isNew) {
+  const tpl = $("admin-user-detail-template").content.cloneNode(true);
+  $("admin-user-detail").innerHTML = "";
+  $("admin-user-detail").appendChild(tpl);
+  $("admin-user-title").textContent = isNew ? "新規管理者" : (user.displayName || user.loginId);
+  $("admin-user-id").textContent = isNew ? "DB管理者を追加します" : user.id;
+  const badge = $("admin-user-badge");
+  badge.textContent = user.disabled ? "停止" : user.role;
+  badge.classList.add(user.disabled ? "disabled" : "enabled");
+  const form = $("admin-user-form");
+  form.elements.loginId.value = user.loginId || "";
+  form.elements.loginId.readOnly = !isNew;
+  form.elements.displayName.value = user.displayName || "";
+  form.elements.role.value = user.role || "admin";
+  form.elements.disabled.checked = Boolean(user.disabled);
+  form.elements.disabledReason.value = user.disabledReason || "";
+  $("admin-user-password-row").classList.toggle("hidden", !isNew);
+  $("btn-admin-user-reset-password").classList.toggle("hidden", isNew);
+  $("btn-admin-user-save").addEventListener("click", saveAdminUser);
+  $("btn-admin-user-reset-password").addEventListener("click", resetAdminUserPassword);
+}
+
+async function saveAdminUser() {
+  const form = $("admin-user-form");
+  const body = {
+    displayName: form.elements.displayName.value,
+    role: form.elements.role.value,
+    disabled: form.elements.disabled.checked,
+    disabledReason: form.elements.disabledReason.value,
+  };
+  if (!selectedAdminUser) {
+    body.loginId = form.elements.loginId.value;
+    body.password = form.elements.password.value;
+    const result = await api("/api/admin/admin-users", "POST", body);
+    await loadAdminUsers();
+    loadAdminUserDetail(result.adminUser.id);
+    $("admin-user-msg").textContent = "登録しました";
+    return;
+  }
+  const result = await api("/api/admin/admin-users/" + encodeURIComponent(selectedAdminUser.id), "PUT", body);
+  await loadAdminUsers();
+  loadAdminUserDetail(result.adminUser.id);
+  $("admin-user-msg").textContent = "保存しました";
+}
+
+async function resetAdminUserPassword() {
+  if (!selectedAdminUser) return;
+  const password = window.prompt("新しいパスワードを入力してください（8文字以上）");
+  if (!password) return;
+  await api("/api/admin/admin-users/" + encodeURIComponent(selectedAdminUser.id) + "/password", "POST", { password });
+  $("admin-user-msg").textContent = "パスワードを再設定しました";
 }
 
 function exportMasterCsv() {
@@ -623,10 +721,13 @@ $("btn-logout").addEventListener("click", logout);
 $("btn-refresh").addEventListener("click", loadPlayers);
 $("tab-players").addEventListener("click", () => showTab("players"));
 $("tab-masters").addEventListener("click", () => showTab("masters"));
+if ($("tab-admin-users")) $("tab-admin-users").addEventListener("click", () => showTab("adminUsers"));
 $("master-type").addEventListener("change", loadMasters);
 $("btn-master-refresh").addEventListener("click", loadMasters);
 $("btn-master-new").addEventListener("click", showNewMasterForm);
 $("btn-master-export").addEventListener("click", exportMasterCsv);
+if ($("btn-admin-users-refresh")) $("btn-admin-users-refresh").addEventListener("click", loadAdminUsers);
+if ($("btn-admin-user-new")) $("btn-admin-user-new").addEventListener("click", showNewAdminUserForm);
 $("btn-proximity-check").addEventListener("click", () => checkExistingProximity().catch((e) => {
   $("master-detail").textContent = e.message;
 }));
@@ -644,6 +745,12 @@ $("master-list").addEventListener("click", (e) => {
   const li = e.target.closest("[data-master]");
   if (li) loadMasterDetail($("master-type").value, li.dataset.master);
 });
+if ($("admin-user-list")) {
+  $("admin-user-list").addEventListener("click", (e) => {
+    const li = e.target.closest("[data-admin-user]");
+    if (li) loadAdminUserDetail(li.dataset.adminUser);
+  });
+}
 
 if ($("admin-version")) {
   $("admin-version").textContent = "管理アプリ v" + ADMIN_APP_VERSION.version;

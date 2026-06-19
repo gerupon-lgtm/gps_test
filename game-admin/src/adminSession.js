@@ -8,9 +8,29 @@ function getIdleTimeoutSeconds(env) {
   return seconds;
 }
 
-function createAdminSession(adminName, now) {
+function normalizeSessionAdmin(admin) {
+  if (admin && typeof admin === "object") {
+    return {
+      adminName: admin.name || admin.displayName || admin.loginId || "admin",
+      adminId: admin.id || null,
+      adminLoginId: admin.loginId || admin.name || "admin",
+      adminRole: admin.role || "admin",
+      authSource: admin.source || "db",
+    };
+  }
   return {
-    adminName,
+    adminName: String(admin || "admin"),
+    adminId: null,
+    adminLoginId: String(admin || "admin"),
+    adminRole: "superadmin",
+    authSource: "env",
+  };
+}
+
+function createAdminSession(admin, now) {
+  const identity = normalizeSessionAdmin(admin);
+  return {
+    ...identity,
     createdAt: now,
     lastActiveAt: now,
     expiresAt: now + SESSION_MAX_AGE_SECONDS * 1000,
@@ -32,5 +52,6 @@ module.exports = {
   SESSION_MAX_AGE_SECONDS,
   createAdminSession,
   getIdleTimeoutSeconds,
+  normalizeSessionAdmin,
   validateAdminSession,
 };

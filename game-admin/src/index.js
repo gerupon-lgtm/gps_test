@@ -15,10 +15,15 @@ const {
   getIdleTimeoutSeconds,
   validateAdminSession,
 } = require("./adminSession");
+const {
+  ADMIN_ROLE_ADMIN,
+  ADMIN_ROLE_SUPERADMIN,
+  authenticateAdmin,
+  createAdminUserPasswordHash,
+  isSuperAdmin,
+} = require("./adminAuth");
 
 const PORT = Number(process.env.PORT || 3010);
-const ADMIN_USER = process.env.ADMIN_USER || "admin";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 const COOKIE_SECRET = process.env.ADMIN_COOKIE_SECRET || process.env.SESSION_SECRET || "dev-admin-secret";
 const ADMIN_IDLE_TIMEOUT_SECONDS = getIdleTimeoutSeconds(process.env);
 const SESSION_COOKIE = "admin_sid";
@@ -48,8 +53,24 @@ function requireAdmin(handler) {
       return reply.code(401).send({ error: "管理者ログインが必要です" });
     }
     req.adminName = session.adminName;
+    req.admin = {
+      id: session.adminId || null,
+      loginId: session.adminLoginId || session.adminName,
+      name: session.adminName,
+      role: session.adminRole || ADMIN_ROLE_ADMIN,
+      source: session.authSource || "db",
+    };
     return handler(req, reply);
   };
+}
+
+function requireSuperAdmin(handler) {
+  return requireAdmin(async (req, reply) => {
+    if (!isSuperAdmin(req.admin)) {
+      return reply.code(403).send({ error: "superadmin権限が必要です" });
+    }
+    return handler(req, reply);
+  });
 }
 
 function setAdminCookie(reply, sid) {
@@ -62,10 +83,34 @@ function setAdminCookie(reply, sid) {
   });
 }
 
-async function audit(adminName, action, targetType, targetId, beforeData, afterData) {
+function adminAuditData(admin) {
+  if (admin && typeof admin === "object") {
+    return {
+      adminName: admin.name || admin.loginId || null,
+      adminId: admin.id || null,
+      adminLoginId: admin.loginId || null,
+      adminRole: admin.role || null,
+      authSource: admin.source || null,
+    };
+  }
+  return {
+    adminName: admin || null,
+    adminId: null,
+    adminLoginId: admin || null,
+    adminRole: null,
+    authSource: null,
+  };
+}
+
+function adminSessionKey(admin) {
+  if (!admin) return "";
+  return [admin.source || "db", admin.id || "", admin.loginId || admin.name || ""].join(":");
+}
+
+async function audit(admin, action, targetType, targetId, beforeData, afterData) {
   await prisma.adminAuditLog.create({
     data: {
-      adminName,
+      ...adminAuditData(admin),
       action,
       targetType,
       targetId: targetId || null,
@@ -405,19 +450,52 @@ function importChangeToResponse(change) {
   };
 }
 
+function adminUserToResponse(row) {
+  return {
+    id: row.id,
+    loginId: row.loginId,
+    displayName: row.displayName,
+    role: row.role,
+    disabled: row.disabled,
+    disabledAt: row.disabledAt,
+    disabledReason: row.disabledReason,
+    lastLoginAt: row.lastLoginAt,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+function normalizeAdminRole(role) {
+  return role === ADMIN_ROLE_SUPERADMIN ? ADMIN_ROLE_SUPERADMIN : ADMIN_ROLE_ADMIN;
+}
+
 app.get("/api/health", async () => ({ ok: true, time: new Date().toISOString() }));
 
 app.post("/api/admin/login", async (req, reply) => {
   const schema = z.object({ loginId: z.string(), password: z.string() });
   const p = schema.safeParse(req.body);
   if (!p.success) return reply.code(400).send({ error: "入力が不正です" });
-  if (!ADMIN_PASSWORD || p.data.loginId !== ADMIN_USER || p.data.password !== ADMIN_PASSWORD) {
+  const admin = await authenticateAdmin({
+    prisma,
+    env: process.env,
+    loginId: p.data.loginId,
+    password: p.data.password,
+    now: new Date(),
+  });
+  if (!admin) {
     return reply.code(401).send({ error: "管理者IDまたはパスワードが違います" });
   }
   const sid = crypto.randomBytes(32).toString("hex");
-  sessions.set(sid, createAdminSession(ADMIN_USER, Date.now()));
+  sessions.set(sid, createAdminSession(admin, Date.now()));
   setAdminCookie(reply, sid);
-  return { ok: true, adminName: ADMIN_USER, idleTimeoutSeconds: ADMIN_IDLE_TIMEOUT_SECONDS };
+  return {
+    ok: true,
+    adminName: admin.name,
+    adminLoginId: admin.loginId,
+    adminRole: admin.role,
+    authSource: admin.source,
+    idleTimeoutSeconds: ADMIN_IDLE_TIMEOUT_SECONDS,
+  };
 });
 
 app.post("/api/admin/logout", async (req, reply) => {
@@ -430,8 +508,83 @@ app.post("/api/admin/logout", async (req, reply) => {
 app.get("/api/admin/me", requireAdmin(async (req) => ({
   ok: true,
   adminName: req.adminName,
+  adminLoginId: req.admin.loginId,
+  adminRole: req.admin.role,
+  authSource: req.admin.source,
   idleTimeoutSeconds: ADMIN_IDLE_TIMEOUT_SECONDS,
 })));
+
+app.get("/api/admin/admin-users", requireSuperAdmin(async () => {
+  const rows = await prisma.adminUser.findMany({ orderBy: { loginId: "asc" } });
+  return rows.map(adminUserToResponse);
+}));
+
+app.post("/api/admin/admin-users", requireSuperAdmin(async (req, reply) => {
+  const schema = z.object({
+    loginId: z.string().trim().min(1).max(100),
+    displayName: z.string().trim().max(100).optional().default(""),
+    password: z.string().min(8).max(200),
+    role: z.enum([ADMIN_ROLE_ADMIN, ADMIN_ROLE_SUPERADMIN]).optional().default(ADMIN_ROLE_ADMIN),
+    disabled: z.boolean().optional().default(false),
+    disabledReason: z.string().trim().max(200).optional().default(""),
+  });
+  const p = schema.safeParse(req.body || {});
+  if (!p.success) return reply.code(400).send({ error: "入力が不正です", detail: p.error.issues });
+  const now = new Date();
+  const row = await prisma.adminUser.create({
+    data: {
+      loginId: p.data.loginId,
+      displayName: p.data.displayName,
+      passwordHash: createAdminUserPasswordHash(p.data.password),
+      role: normalizeAdminRole(p.data.role),
+      disabled: p.data.disabled,
+      disabledAt: p.data.disabled ? now : null,
+      disabledReason: p.data.disabled ? p.data.disabledReason : null,
+    },
+  });
+  await audit(req.admin, "create_admin_user", "AdminUser", row.id, null, adminUserToResponse(row));
+  return { ok: true, adminUser: adminUserToResponse(row) };
+}));
+
+app.put("/api/admin/admin-users/:id", requireSuperAdmin(async (req, reply) => {
+  const schema = z.object({
+    displayName: z.string().trim().max(100).optional(),
+    role: z.enum([ADMIN_ROLE_ADMIN, ADMIN_ROLE_SUPERADMIN]).optional(),
+    disabled: z.boolean().optional(),
+    disabledReason: z.string().trim().max(200).optional(),
+  });
+  const p = schema.safeParse(req.body || {});
+  if (!p.success) return reply.code(400).send({ error: "入力が不正です", detail: p.error.issues });
+  const before = await prisma.adminUser.findUnique({ where: { id: req.params.id } });
+  if (!before) return reply.code(404).send({ error: "管理者が見つかりません" });
+  const data = {};
+  if (Object.prototype.hasOwnProperty.call(p.data, "displayName")) data.displayName = p.data.displayName;
+  if (Object.prototype.hasOwnProperty.call(p.data, "role")) data.role = normalizeAdminRole(p.data.role);
+  if (Object.prototype.hasOwnProperty.call(p.data, "disabled")) {
+    data.disabled = p.data.disabled;
+    data.disabledAt = p.data.disabled ? new Date() : null;
+    data.disabledReason = p.data.disabled ? (p.data.disabledReason || before.disabledReason || null) : null;
+  } else if (Object.prototype.hasOwnProperty.call(p.data, "disabledReason")) {
+    data.disabledReason = p.data.disabledReason || null;
+  }
+  const after = await prisma.adminUser.update({ where: { id: before.id }, data });
+  await audit(req.admin, "update_admin_user", "AdminUser", before.id, adminUserToResponse(before), adminUserToResponse(after));
+  return { ok: true, adminUser: adminUserToResponse(after) };
+}));
+
+app.post("/api/admin/admin-users/:id/password", requireSuperAdmin(async (req, reply) => {
+  const schema = z.object({ password: z.string().min(8).max(200) });
+  const p = schema.safeParse(req.body || {});
+  if (!p.success) return reply.code(400).send({ error: "入力が不正です", detail: p.error.issues });
+  const before = await prisma.adminUser.findUnique({ where: { id: req.params.id } });
+  if (!before) return reply.code(404).send({ error: "管理者が見つかりません" });
+  const after = await prisma.adminUser.update({
+    where: { id: before.id },
+    data: { passwordHash: createAdminUserPasswordHash(p.data.password) },
+  });
+  await audit(req.admin, "reset_admin_user_password", "AdminUser", before.id, adminUserToResponse(before), adminUserToResponse(after));
+  return { ok: true };
+}));
 
 app.get("/api/admin/players", requireAdmin(async () => {
   const players = await prisma.player.findMany({
@@ -506,7 +659,7 @@ app.post("/api/admin/players/:playerId/avatar", requireAdmin(async (req, reply) 
     where: { id: before.id },
     data: { avatar },
   });
-  await audit(req.adminName, "update_player_avatar", "Player", before.id, before, after);
+  await audit(req.admin, "update_player_avatar", "Player", before.id, before, after);
   return { ok: true, avatar: after.avatar };
 }));
 
@@ -528,14 +681,14 @@ app.post("/api/admin/users/:userId/disabled", requireAdmin(async (req, reply) =>
     if (p.data.disabled) await tx.session.deleteMany({ where: { userId: req.params.userId } });
     return user;
   });
-  await audit(req.adminName, p.data.disabled ? "disable_user" : "enable_user", "User", before.id, before, after);
+  await audit(req.admin, p.data.disabled ? "disable_user" : "enable_user", "User", before.id, before, after);
   return { ok: true, disabled: after.disabled };
 }));
 
 app.post("/api/admin/users/:userId/sessions/clear", requireAdmin(async (req, reply) => {
   const before = await prisma.session.findMany({ where: { userId: req.params.userId } });
   await prisma.session.deleteMany({ where: { userId: req.params.userId } });
-  await audit(req.adminName, "clear_sessions", "User", req.params.userId, before, []);
+  await audit(req.admin, "clear_sessions", "User", req.params.userId, before, []);
   return { ok: true, deleted: before.length };
 }));
 
@@ -625,7 +778,7 @@ app.post("/api/admin/players/:playerId/defeated-spots", requireAdmin(async (req,
     });
     return { player, state };
   });
-  await audit(req.adminName, defeated ? "add_defeated_spot" : "remove_defeated_spot", "Player", before.id, before, result);
+  await audit(req.admin, defeated ? "add_defeated_spot" : "remove_defeated_spot", "Player", before.id, before, result);
   return { ok: true };
 }));
 
@@ -657,7 +810,7 @@ app.post("/api/admin/masters/:type", requireAdmin(async (req, reply) => {
       })
     : [];
   const row = await prisma[config.model].create({ data: prepared.change.data });
-  await audit(req.adminName, "create_master", req.params.type, prepared.change.id, null, row);
+  await audit(req.admin, "create_master", req.params.type, prepared.change.id, null, row);
   return {
     ok: true,
     id: prepared.change.id,
@@ -694,7 +847,7 @@ app.put("/api/admin/masters/:type/:id", requireAdmin(async (req, reply) => {
     where: { [config.idField]: req.params.id },
     data,
   });
-  await audit(req.adminName, "update_master", req.params.type, req.params.id, before, after);
+  await audit(req.admin, "update_master", req.params.type, req.params.id, before, after);
   return { ok: true, data: after };
 }));
 
@@ -735,6 +888,7 @@ app.post("/api/admin/masters/:type/import/preview", requireAdmin(async (req, rep
   const previewId = crypto.randomBytes(16).toString("hex");
   importPreviews.set(previewId, {
     adminName: req.adminName,
+    adminKey: adminSessionKey(req.admin),
     type: req.params.type,
     createdAt: Date.now(),
     changes: preview.changes,
@@ -775,7 +929,7 @@ app.post("/api/admin/masters/:type/import/apply", requireAdmin(async (req, reply
   const p = schema.safeParse(req.body);
   if (!p.success) return reply.code(400).send({ error: "入力が不正です" });
   const preview = importPreviews.get(p.data.previewId);
-  if (!preview || preview.type !== req.params.type || preview.adminName !== req.adminName) {
+  if (!preview || preview.type !== req.params.type || preview.adminKey !== adminSessionKey(req.admin)) {
     return reply.code(404).send({ error: "プレビューが見つかりません。再度プレビューしてください" });
   }
   if (Date.now() - preview.createdAt > 30 * 60 * 1000) {
@@ -800,7 +954,7 @@ app.post("/api/admin/masters/:type/import/apply", requireAdmin(async (req, reply
     }
   });
   importPreviews.delete(p.data.previewId);
-  await audit(req.adminName, "import_master_csv", req.params.type, null, beforeRows, {
+  await audit(req.admin, "import_master_csv", req.params.type, null, beforeRows, {
     applied: targets.map((c) => ({ id: c.id, type: c.type, changedFields: c.changedFields })),
   });
   return { ok: true, applied: targets.length };

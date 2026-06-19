@@ -1,8 +1,8 @@
 (function (root) {
   const ADMIN_APP_VERSION = {
-    version: "0.1.9",
-    assetsVersion: "0.1.9",
-    releasedAt: "2026-06-18",
+    version: "0.1.10",
+    assetsVersion: "0.1.10",
+    releasedAt: "2026-06-19",
   };
 
   if (typeof module !== "undefined" && module.exports) {

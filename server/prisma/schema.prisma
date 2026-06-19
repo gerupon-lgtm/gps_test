@@ -228,10 +228,28 @@ model BattleSession {
 model AdminAuditLog {
   id         String   @id @default(cuid())
   adminName  String?
+  adminId    String?
+  adminLoginId String?
+  adminRole  String?
+  authSource String?
   action     String
   targetType String
   targetId   String?
   beforeJson String?
   afterJson  String?
   createdAt  DateTime @default(now())
+}
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  loginId      String    @unique
+  displayName  String    @default("")
+  passwordHash String
+  role         String    @default("admin")
+  disabled     Boolean   @default(false)
+  disabledAt   DateTime?
+  disabledReason String?
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }

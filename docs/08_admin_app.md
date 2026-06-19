@@ -31,6 +31,8 @@ Prisma schemaは `server/prisma/schema.prisma` を正とし、管理アプリ側
 初期実装:
 
 - 管理者ログイン
+- env管理者とDB管理者の両対応
+- DB管理者の追加/編集/停止/パスワード再設定（`superadmin` のみ）
 - プレイヤー一覧
 - プレイヤー詳細
 - ログイン停止/解除
@@ -176,7 +178,9 @@ sudo systemctl reload caddy
 - `assetsVersion`: `index.html` のCSS/JS読み込みクエリに使うキャッシュバスター
 - `releasedAt`: リリース日
 
-管理アプリを修正してリリースする場合は、`version` と `assetsVersion` を同じ値でインクリメントします。現在の管理アプリは `0.1.9` です。
+管理アプリを修正してリリースする場合は、`version` と `assetsVersion` を同じ値でインクリメントします。現在の管理アプリは `0.1.10` です。
+
+DB管理者の詳細な運用、初回追加手順、監査ログ、デプロイ手順は `docs/12_admin_users.md` を参照してください。
 
 ## CSV入出力
 

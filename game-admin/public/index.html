@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GPSゲーム 管理</title>
-  <link rel="stylesheet" href="./style.css?v=0.1.9">
+  <link rel="stylesheet" href="./style.css?v=0.1.10">
 </head>
 <body>
   <header>
@@ -26,6 +26,7 @@
       <nav class="tabs">
         <button id="tab-players" class="tab active">プレイヤー管理</button>
         <button id="tab-masters" class="tab">マスタ管理</button>
+        <button id="tab-admin-users" class="tab hidden">管理者管理</button>
       </nav>
 
       <div id="players-panel" class="grid">
@@ -92,6 +93,20 @@
           </div>
         </section>
       </div>
+
+      <div id="admin-users-panel" class="grid hidden">
+        <section class="card">
+          <h2>管理者一覧</h2>
+          <button id="btn-admin-users-refresh">再読み込み</button>
+          <button id="btn-admin-user-new">新規登録</button>
+          <ul id="admin-user-list" class="list"></ul>
+        </section>
+
+        <section class="card">
+          <h2>管理者詳細</h2>
+          <div id="admin-user-detail" class="muted">管理者を選択してください。</div>
+        </section>
+      </div>
     </section>
   </main>
 
@@ -153,8 +168,36 @@
     <p id="master-msg" class="msg"></p>
   </template>
 
-  <script src="./adminVersion.js?v=0.1.9"></script>
-  <script src="./adminTime.js?v=0.1.9"></script>
-  <script src="./app.js?v=0.1.9"></script>
+  <template id="admin-user-detail-template">
+    <div class="detail-head">
+      <div>
+        <h3 id="admin-user-title"></h3>
+        <p id="admin-user-id" class="muted"></p>
+      </div>
+      <span id="admin-user-badge" class="badge"></span>
+    </div>
+    <form id="admin-user-form" class="master-form">
+      <label>loginId<input name="loginId" autocomplete="username"></label>
+      <label>displayName<input name="displayName"></label>
+      <label>role
+        <select name="role">
+          <option value="admin">admin</option>
+          <option value="superadmin">superadmin</option>
+        </select>
+      </label>
+      <label class="check-row"><input name="disabled" type="checkbox"> disabled</label>
+      <label>disabledReason<input name="disabledReason"></label>
+      <label id="admin-user-password-row">password<input name="password" type="password" autocomplete="new-password"></label>
+    </form>
+    <div class="actions">
+      <button id="btn-admin-user-save" type="button">保存</button>
+      <button id="btn-admin-user-reset-password" type="button">パスワード再設定</button>
+    </div>
+    <p id="admin-user-msg" class="msg"></p>
+  </template>
+
+  <script src="./adminVersion.js?v=0.1.10"></script>
+  <script src="./adminTime.js?v=0.1.10"></script>
+  <script src="./app.js?v=0.1.10"></script>
 </body>
 </html>
