@@ -22,6 +22,8 @@ const {
   countInDuration,
   calculateSongStartTime,
   calculateVisualBeatState,
+  isDebugMode,
+  calculateClockDriftMs,
   SONG_DEFINITIONS,
   CHART_DEFINITIONS,
   applyGroove,
@@ -45,10 +47,10 @@ test("mobile layout prioritizes the play lane within one viewport", () => {
   assert.match(css, /height:\s*clamp\(300px,\s*calc\(100dvh\s*-\s*270px\),\s*510px\)/);
   assert.match(css, /grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/);
   assert.match(css, /@media\s*\(max-width:\s*560px\)\s*and\s*\(max-height:\s*600px\)/);
-  assert.match(html, /rhythm-battle-poc\.css\?v=11/);
+  assert.match(html, /rhythm-battle-poc\.css\?v=12/);
   assert.match(html, /id="hint-toggle"[^>]*checked/);
   assert.match(html, /id="battle-result"/);
-  assert.match(html, /rhythm-battle-poc\.js\?v=16/);
+  assert.match(html, /rhythm-battle-poc\.js\?v=17/);
   assert.match(css, /\.battle-result\s*\{/);
   assert.match(html, /id="battle-result-title"/);
   assert.match(css, /\.battle-result\.timeout/);
@@ -60,6 +62,8 @@ test("mobile layout prioritizes the play lane within one viewport", () => {
   assert.match(css, /\.note\.phase-head\s*\{[\s\S]*?width:\s*22px[\s\S]*?height:\s*22px/);
   assert.match(css, /\.note\.phase-offbeat,[\s\S]*?\.note\.phase-swing\s*\{[\s\S]*?width:\s*22px[\s\S]*?height:\s*22px/);
   assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)/);
+  assert.match(html, /id="diagnostics-panel"[^>]*hidden[^>]*aria-live="off"/);
+  assert.match(css, /\.diagnostics-panel\s*\{[\s\S]*?pointer-events:\s*none/);
   assert.match(fs.readFileSync(path.join(root, "js/rhythm-battle-poc.js"), "utf8"), /addEventListener\("pointerdown", attack\)/);
 });
 
@@ -383,6 +387,17 @@ test("visual beat pulse lasts for a fixed short window", () => {
     progress: 0,
     pulse: false,
   });
+});
+
+test("diagnostic mode is enabled only by debug=1", () => {
+  assert.equal(isDebugMode("?debug=1"), true);
+  assert.equal(isDebugMode("?debug=0"), false);
+  assert.equal(isDebugMode(""), false);
+});
+
+test("clock diagnostics report wall time ahead of audio time", () => {
+  assert.equal(calculateClockDriftMs(8.25, 8.5), 250);
+  assert.equal(calculateClockDriftMs(Number.NaN, 8.5), 0);
 });
 
 test("runtime drives and resets the visual beat guide from the shared clock", () => {

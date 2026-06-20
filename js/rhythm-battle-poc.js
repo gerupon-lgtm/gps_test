@@ -162,6 +162,15 @@
     };
   }
 
+  function isDebugMode(search) {
+    return new URLSearchParams(search || "").get("debug") === "1";
+  }
+
+  function calculateClockDriftMs(audioSongTime, wallSongTime) {
+    if (!Number.isFinite(audioSongTime) || !Number.isFinite(wallSongTime)) return 0;
+    return (wallSongTime - audioSongTime) * 1000;
+  }
+
   function classifyBeatPhase(beatPosition, groove) {
     const fraction = beatPosition - Math.floor(beatPosition);
     if (Math.abs(fraction) < 1e-9) return "head";
@@ -420,6 +429,8 @@
       countInDuration,
       calculateSongStartTime,
       calculateVisualBeatState,
+      isDebugMode,
+      calculateClockDriftMs,
       SONG_DEFINITIONS,
       CHART_DEFINITIONS,
       applyGroove,
