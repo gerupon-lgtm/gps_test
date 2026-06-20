@@ -26,6 +26,7 @@ const {
   isDebugMode,
   calculateClockDriftMs,
   isCompositorVisualMode,
+  prefersCompositorVisuals,
   calculateVisualSongStartMs,
   calculateNoteAnimationDelayMs,
   SONG_DEFINITIONS,
@@ -429,6 +430,13 @@ test("compositor visuals are opt-in and share an exact song anchor", () => {
   assert.equal(calculateNoteAnimationDelayMs(3500, 3, 2, 1000), 3500);
   assert.equal(calculateNoteAnimationDelayMs(3500, 0, 2, 1000), 500);
   assert.equal(calculateNoteAnimationDelayMs(3500, Number.NaN, 2, 1000), 0);
+});
+
+test("compositor visuals are default while raf remains opt-in", () => {
+  assert.equal(prefersCompositorVisuals(""), true);
+  assert.equal(prefersCompositorVisuals("?debug=1"), true);
+  assert.equal(prefersCompositorVisuals("?visual=compositor"), true);
+  assert.equal(prefersCompositorVisuals("?visual=raf"), false);
 });
 
 test("runtime drives and resets the visual beat guide from the shared clock", () => {

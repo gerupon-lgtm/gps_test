@@ -181,6 +181,10 @@
     return new URLSearchParams(search || "").get("visual") === "compositor";
   }
 
+  function prefersCompositorVisuals(search) {
+    return new URLSearchParams(search || "").get("visual") !== "raf";
+  }
+
   function calculateVisualSongStartMs(performanceNowMs, audioNowSec, audioStartSec) {
     if (
       !Number.isFinite(performanceNowMs) ||
@@ -472,6 +476,7 @@
       isDebugMode,
       calculateClockDriftMs,
       isCompositorVisualMode,
+      prefersCompositorVisuals,
       calculateVisualSongStartMs,
       calculateNoteAnimationDelayMs,
       SONG_DEFINITIONS,
@@ -1439,7 +1444,7 @@
 
   function bind() {
     state.debugEnabled = isDebugMode(window.location.search);
-    state.compositorVisuals = isCompositorVisualMode(window.location.search) &&
+    state.compositorVisuals = prefersCompositorVisuals(window.location.search) &&
       typeof Element !== "undefined" &&
       typeof Element.prototype.animate === "function";
     $("bpm-label").textContent = String(SETTINGS.bpm);
