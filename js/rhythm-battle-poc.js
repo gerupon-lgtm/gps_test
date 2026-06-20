@@ -171,6 +171,19 @@
     return (wallSongTime - audioSongTime) * 1000;
   }
 
+  function shouldRunVisualFallback(
+    running,
+    visibilityState,
+    lastVisualRenderMs,
+    nowMs,
+    thresholdMs = 50
+  ) {
+    if (!running || visibilityState !== "visible") return false;
+    if (!Number.isFinite(lastVisualRenderMs) || lastVisualRenderMs <= 0) return false;
+    if (!Number.isFinite(nowMs) || !Number.isFinite(thresholdMs)) return false;
+    return nowMs - lastVisualRenderMs >= thresholdMs;
+  }
+
   function classifyBeatPhase(beatPosition, groove) {
     const fraction = beatPosition - Math.floor(beatPosition);
     if (Math.abs(fraction) < 1e-9) return "head";
@@ -431,6 +444,7 @@
       calculateVisualBeatState,
       isDebugMode,
       calculateClockDriftMs,
+      shouldRunVisualFallback,
       SONG_DEFINITIONS,
       CHART_DEFINITIONS,
       applyGroove,
@@ -472,6 +486,7 @@
     state.debugLastSchedulerMs = 0;
     state.debugSchedulerMaxGapMs = 0;
     state.debugSlowSchedulerCount = 0;
+    state.debugVisualFallbackCount = 0;
     state.debugFinalDriftMs = 0;
     state.debugMaxAbsDriftMs = 0;
     state.debugLastTap = "none";
@@ -507,6 +522,7 @@
       "frameMax=" + state.debugMaxFrameGapMs.toFixed(1) + "ms >50=" + state.debugLongFrameCount,
       "renderMax=" + state.debugRenderMaxMs.toFixed(1) + "ms >8=" + state.debugSlowRenderCount,
       "timerMax=" + state.debugSchedulerMaxGapMs.toFixed(1) + "ms >75=" + state.debugSlowSchedulerCount,
+      "fallback=" + state.debugVisualFallbackCount,
       "latency base=" + baseLatency.toFixed(1) + "ms out=" + outputLatency.toFixed(1) + "ms",
       "states=" + (state.debugStateChanges.join(">") || state.debugAudioState),
       "running=" + state.running + " tap=" + state.debugLastTap,
@@ -535,6 +551,8 @@
     chart: [],
     noteEls: new Map(),
     raf: 0,
+    visualWatchdog: 0,
+    lastVisualRenderMs: 0,
     scheduler: 0,
     nextBeat: 0,
     running: false,
@@ -567,6 +585,7 @@
     debugLastSchedulerMs: 0,
     debugSchedulerMaxGapMs: 0,
     debugSlowSchedulerCount: 0,
+    debugVisualFallbackCount: 0,
     debugFinalDriftMs: 0,
     debugMaxAbsDriftMs: 0,
     debugLastTap: "none",
@@ -615,11 +634,14 @@
     state.running = false;
     state.countingIn = false;
     clearInterval(state.scheduler);
+    clearInterval(state.visualWatchdog);
     clearTimeout(state.songEndTimer);
     cancelAnimationFrame(state.raf);
     clearCountTimers();
     stopTrackedSources(state.activeSources);
     state.scheduler = 0;
+    state.visualWatchdog = 0;
+    state.lastVisualRenderMs = 0;
     state.songEndTimer = 0;
     state.raf = 0;
     resetVisualBeatGuide();
@@ -1144,13 +1166,11 @@
     updateStats();
   }
 
-  function render(frameTime) {
+  function renderVisual(frameTime) {
     if (!state.running) return;
     const renderStartedMs = state.debugEnabled && state.debugSessionActive
       ? performance.now()
       : 0;
-    const currentFrameTime = Number.isFinite(frameTime) ? frameTime : performance.now();
-    sampleDiagnosticsFrame(currentFrameTime);
     const now = currentSongTime();
     const visualBeat = calculateVisualBeatState(now, SETTINGS.bpm);
     if (!state.countingIn) {
@@ -1185,11 +1205,36 @@
       el.style.left = x + "%";
       el.style.top = y + "px";
     }
+    const renderFinishedMs = performance.now();
+    state.lastVisualRenderMs = renderFinishedMs;
     if (renderStartedMs) {
-      const renderDurationMs = performance.now() - renderStartedMs;
+      const renderDurationMs = renderFinishedMs - renderStartedMs;
       state.debugRenderMaxMs = Math.max(state.debugRenderMaxMs, renderDurationMs);
       if (renderDurationMs > 8) state.debugSlowRenderCount += 1;
     }
+  }
+
+  function visualWatchdogTick() {
+    const nowMs = performance.now();
+    if (shouldRunVisualFallback(
+      state.running,
+      document.visibilityState,
+      state.lastVisualRenderMs,
+      nowMs,
+      50
+    )) {
+      if (state.debugEnabled && state.debugSessionActive) {
+        state.debugVisualFallbackCount += 1;
+      }
+      renderVisual(nowMs);
+    }
+  }
+
+  function render(frameTime) {
+    if (!state.running) return;
+    const currentFrameTime = Number.isFinite(frameTime) ? frameTime : performance.now();
+    sampleDiagnosticsFrame(currentFrameTime);
+    renderVisual(currentFrameTime);
     state.raf = requestAnimationFrame(render);
   }
 
@@ -1225,6 +1270,7 @@
       CHART_DEFINITIONS[state.patternId].label + "：4カウント後に開始!"
     );
     render();
+    state.visualWatchdog = setInterval(visualWatchdogTick, 25);
   }
 
   function bind() {

@@ -215,7 +215,7 @@ node --test server\tests\rhythm-battle-poc.test.js
 node --check js\rhythm-battle-poc.js
 ```
 
-配布版は`dist/rhythm-battle-poc/index.html`を開く。HTMLのキャッシュ番号はCSS `v=12`、JavaScript `v=19`。2026-06-20のメインスレッド追加診断後は48テスト全件成功、JavaScript構文エラーなし。
+配布版は`dist/rhythm-battle-poc/index.html`を開く。HTMLのキャッシュ番号はCSS `v=12`、JavaScript `v=20`。2026-06-20のrAFウォッチドッグ追加後は50テスト全件成功、JavaScript構文エラーなし。
 
 ### 12.1 Android Chrome時計診断
 
@@ -242,6 +242,10 @@ node --check js\rhythm-battle-poc.js
 - `frameMax`と`timerMax`が大きく、`renderMax`が小さい: メインスレッド全体またはタイマー配送が停止している。
 - `renderMax`と`>8`も大きい: PoC自身のDOM・レイアウト・描画処理が主因候補になる。
 
+実機診断では、Android Chromeで`frameMax`と`>50`だけが増え、`render>8=0`かつ`timer>75=0`だった。この結果から、PoCの描画処理やメインスレッド全体ではなく、rAFコールバックの間引きが主因候補になった。
+
+JavaScript `v=20`では、通常のrAF描画を維持しながら、表示中の戦闘で最後の視覚描画から50ms以上空いた場合だけ25ms周期のウォッチドッグが補助描画する。rAFが正常な環境では補助DOM描画を行わず、非表示タブと戦闘終了後では動作しない。診断サマリーの`fallback`は補助描画の発動回数を示す。音声時計、判定、譜面、スコア、曲終了処理は変更していない。
+
 診断値は終了後の画面表示だけに使用し、外部送信・永続保存は行わない。通常URLでは診断計測もパネル表示も行わない。
 
 ## 13. 実装済みと本体未実装の区別
@@ -256,6 +260,7 @@ node --check js\rhythm-battle-poc.js
 - 任意実行できる端末別キャリブレーションと`localStorage`保存
 - 4区画ビートガイド、拍頭発光、全ノーツ22px、低モーション対応
 - `?debug=1`で有効になり、プレイ中はメモリ集計だけを行って終了後に一度だけ表示する低負荷診断
+- rAFが50ms以上途切れた場合だけ表示中の戦闘を補助描画する適応型ウォッチドッグ
 
 ### ゲーム本体向け方針のみ・未実装
 

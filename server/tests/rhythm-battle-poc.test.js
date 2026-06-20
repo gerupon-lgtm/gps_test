@@ -24,6 +24,7 @@ const {
   calculateVisualBeatState,
   isDebugMode,
   calculateClockDriftMs,
+  shouldRunVisualFallback,
   SONG_DEFINITIONS,
   CHART_DEFINITIONS,
   applyGroove,
@@ -50,7 +51,7 @@ test("mobile layout prioritizes the play lane within one viewport", () => {
   assert.match(html, /rhythm-battle-poc\.css\?v=12/);
   assert.match(html, /id="hint-toggle"[^>]*checked/);
   assert.match(html, /id="battle-result"/);
-  assert.match(html, /rhythm-battle-poc\.js\?v=19/);
+  assert.match(html, /rhythm-battle-poc\.js\?v=20/);
   assert.match(css, /\.battle-result\s*\{/);
   assert.match(html, /id="battle-result-title"/);
   assert.match(css, /\.battle-result\.timeout/);
@@ -400,6 +401,15 @@ test("clock diagnostics report wall time ahead of audio time", () => {
   assert.equal(calculateClockDriftMs(Number.NaN, 8.5), 0);
 });
 
+test("visual fallback runs only for a stale visible active battle", () => {
+  assert.equal(shouldRunVisualFallback(true, "visible", 100, 149, 50), false);
+  assert.equal(shouldRunVisualFallback(true, "visible", 100, 150, 50), true);
+  assert.equal(shouldRunVisualFallback(true, "hidden", 100, 200, 50), false);
+  assert.equal(shouldRunVisualFallback(false, "visible", 100, 200, 50), false);
+  assert.equal(shouldRunVisualFallback(true, "visible", 0, 200, 50), false);
+  assert.equal(shouldRunVisualFallback(true, "visible", 100, Number.NaN, 50), false);
+});
+
 test("runtime drives and resets the visual beat guide from the shared clock", () => {
   const source = fs.readFileSync(path.resolve(__dirname, "../../js/rhythm-battle-poc.js"), "utf8");
   assert.match(source, /calculateVisualBeatState\(now,\s*SETTINGS\.bpm\)/);
@@ -427,6 +437,23 @@ test("diagnostic runtime collects silently and renders only the final summary", 
   assert.match(source, /renderMax=/);
   assert.match(source, /timerMax=/);
   assert.doesNotMatch(source, /debugLastPanelUpdateMs/);
+});
+
+test("visual watchdog supplements stale rAF rendering without hiding diagnostics", () => {
+  const source = fs.readFileSync(path.resolve(__dirname, "../../js/rhythm-battle-poc.js"), "utf8");
+  assert.match(source, /function renderVisual\(frameTime\)/);
+  assert.match(source, /function visualWatchdogTick\(\)/);
+  assert.match(source, /shouldRunVisualFallback\([\s\S]*?document\.visibilityState/);
+  assert.match(source, /state\.visualWatchdog\s*=\s*setInterval\(visualWatchdogTick,\s*25\)/);
+  assert.match(source, /clearInterval\(state\.visualWatchdog\)/);
+  assert.match(source, /debugVisualFallbackCount\s*\+=\s*1/);
+  assert.match(source, /fallback=/);
+  assert.match(source, /function render\(frameTime\)[\s\S]*?sampleDiagnosticsFrame\(currentFrameTime\)[\s\S]*?renderVisual\(currentFrameTime\)/);
+  const visualBody = source.slice(
+    source.indexOf("function renderVisual"),
+    source.indexOf("function visualWatchdogTick")
+  );
+  assert.doesNotMatch(visualBody, /sampleDiagnosticsFrame/);
 });
 
 test("judgeHit returns perfect for very close timing", () => {
