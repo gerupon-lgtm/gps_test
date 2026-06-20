@@ -24,6 +24,9 @@ const {
   calculateVisualBeatState,
   isDebugMode,
   calculateClockDriftMs,
+  isCompositorVisualMode,
+  calculateVisualSongStartMs,
+  calculateNoteAnimationDelayMs,
   SONG_DEFINITIONS,
   CHART_DEFINITIONS,
   applyGroove,
@@ -47,10 +50,10 @@ test("mobile layout prioritizes the play lane within one viewport", () => {
   assert.match(css, /height:\s*clamp\(300px,\s*calc\(100dvh\s*-\s*270px\),\s*510px\)/);
   assert.match(css, /grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/);
   assert.match(css, /@media\s*\(max-width:\s*560px\)\s*and\s*\(max-height:\s*600px\)/);
-  assert.match(html, /rhythm-battle-poc\.css\?v=12/);
+  assert.match(html, /rhythm-battle-poc\.css\?v=13/);
   assert.match(html, /id="hint-toggle"[^>]*checked/);
   assert.match(html, /id="battle-result"/);
-  assert.match(html, /rhythm-battle-poc\.js\?v=22/);
+  assert.match(html, /rhythm-battle-poc\.js\?v=23/);
   assert.match(css, /\.battle-result\s*\{/);
   assert.match(html, /id="battle-result-title"/);
   assert.match(css, /\.battle-result\.timeout/);
@@ -400,6 +403,18 @@ test("clock diagnostics report wall time ahead of audio time", () => {
   assert.equal(calculateClockDriftMs(Number.NaN, 8.5), 0);
 });
 
+test("compositor visuals are opt-in and share an exact song anchor", () => {
+  assert.equal(isCompositorVisualMode("?visual=compositor"), true);
+  assert.equal(isCompositorVisualMode("?debug=1&visual=compositor"), true);
+  assert.equal(isCompositorVisualMode(""), false);
+  assert.equal(isCompositorVisualMode("?visual=raf"), false);
+  assert.equal(calculateVisualSongStartMs(1000, 4, 6.5), 3500);
+  assert.equal(calculateVisualSongStartMs(Number.NaN, 4, 6.5), 0);
+  assert.equal(calculateNoteAnimationDelayMs(3500, 3, 2, 1000), 3500);
+  assert.equal(calculateNoteAnimationDelayMs(3500, 0, 2, 1000), 500);
+  assert.equal(calculateNoteAnimationDelayMs(3500, Number.NaN, 2, 1000), 0);
+});
+
 test("runtime drives and resets the visual beat guide from the shared clock", () => {
   const source = fs.readFileSync(path.resolve(__dirname, "../../js/rhythm-battle-poc.js"), "utf8");
   assert.match(source, /calculateVisualBeatState\(now,\s*SETTINGS\.bpm\)/);
@@ -426,6 +441,7 @@ test("diagnostic runtime collects silently and renders only the final summary", 
   assert.match(source, /schedulerGapMs > 75/);
   assert.match(source, /renderMax=/);
   assert.match(source, /timerMax=/);
+  assert.match(source, /visual=/);
   assert.doesNotMatch(source, /debugLastPanelUpdateMs/);
 });
 
@@ -435,6 +451,32 @@ test("visual rendering stays on rAF without a watchdog timer", () => {
   assert.match(source, /function render\(frameTime\)[\s\S]*?sampleDiagnosticsFrame\(currentFrameTime\)[\s\S]*?renderVisual\(currentFrameTime\)/);
   assert.match(source, /state\.raf\s*=\s*requestAnimationFrame\(render\)/);
   assert.doesNotMatch(source, /visualWatchdog|shouldRunVisualFallback|lastVisualRenderMs|fallback=/);
+});
+
+test("compositor mode pre-creates note animations and keeps rAF as fallback", () => {
+  const source = fs.readFileSync(path.resolve(__dirname, "../../js/rhythm-battle-poc.js"), "utf8");
+  assert.match(source, /function prepareCompositorNotes\(songStartMs\)/);
+  assert.match(source, /calculateNoteAnimationDelayMs\(\s*songStartMs,/);
+  assert.match(source, /\.animate\([\s\S]*?translate3d/);
+  assert.match(source, /className = "note-motion compositor-note-motion"/);
+  assert.match(source, /motionEl\.appendChild\(noteEl\)/);
+  assert.match(source, /easing:\s*"linear"/);
+  assert.match(source, /state\.visualAnimations\.push\(animation\)/);
+  assert.match(source, /function cancelVisualAnimations\(\)/);
+  assert.match(source, /function stopPlayback\(\)[\s\S]*?cancelVisualAnimations\(\)/);
+  assert.match(source, /if \(state\.compositorVisuals\) continue/);
+  assert.match(source, /prepareCompositorNotes\(state\.visualSongStartMs\)/);
+});
+
+test("compositor beat guide repeats four quarter-note animations on the shared anchor", () => {
+  const source = fs.readFileSync(path.resolve(__dirname, "../../js/rhythm-battle-poc.js"), "utf8");
+  assert.match(source, /function prepareCompositorBeatGuide\(songStartMs\)/);
+  assert.match(source, /querySelectorAll\("\.beat-guide-step"\)/);
+  assert.match(source, /iterations:\s*Infinity/);
+  assert.match(source, /duration:\s*barMs/);
+  assert.match(source, /prepareCompositorBeatGuide\(state\.visualSongStartMs\)/);
+  assert.match(source, /!state\.countingIn && !state\.compositorVisuals/);
+  assert.match(source, /classList\.remove\("compositor-guide"\)/);
 });
 
 test("judged and end-of-battle notes are removed from DOM and state", () => {

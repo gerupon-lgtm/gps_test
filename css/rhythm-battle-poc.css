@@ -396,6 +396,10 @@ h1 {
   box-shadow: 0 0 14px rgba(250, 204, 21, 0.88);
 }
 
+.beat-guide-step.compositor-guide {
+  will-change: transform, opacity;
+}
+
 .lane.beat-pulse .hit-line {
   box-shadow: 0 0 30px 7px rgba(250, 204, 21, 0.88);
 }
@@ -480,6 +484,21 @@ h1 {
   z-index: 3;
   display: grid;
   place-items: center;
+}
+
+.note-motion {
+  position: absolute;
+  z-index: 3;
+}
+
+.note-motion .note {
+  left: 0;
+  top: 0;
+}
+
+.compositor-note-motion {
+  opacity: 0;
+  will-change: transform, opacity;
 }
 
 .note.phase-head {

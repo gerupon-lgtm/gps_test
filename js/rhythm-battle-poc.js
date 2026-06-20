@@ -166,6 +166,34 @@
     return new URLSearchParams(search || "").get("debug") === "1";
   }
 
+  function isCompositorVisualMode(search) {
+    return new URLSearchParams(search || "").get("visual") === "compositor";
+  }
+
+  function calculateVisualSongStartMs(performanceNowMs, audioNowSec, audioStartSec) {
+    if (
+      !Number.isFinite(performanceNowMs) ||
+      !Number.isFinite(audioNowSec) ||
+      !Number.isFinite(audioStartSec)
+    ) return 0;
+    return performanceNowMs + (audioStartSec - audioNowSec) * 1000;
+  }
+
+  function calculateNoteAnimationDelayMs(
+    songStartMs,
+    noteTimeSec,
+    appearSec,
+    timelineNowMs
+  ) {
+    if (
+      !Number.isFinite(songStartMs) ||
+      !Number.isFinite(noteTimeSec) ||
+      !Number.isFinite(appearSec) ||
+      !Number.isFinite(timelineNowMs)
+    ) return 0;
+    return songStartMs + (noteTimeSec - appearSec) * 1000 - timelineNowMs;
+  }
+
   function calculateClockDriftMs(audioSongTime, wallSongTime) {
     if (!Number.isFinite(audioSongTime) || !Number.isFinite(wallSongTime)) return 0;
     return (wallSongTime - audioSongTime) * 1000;
@@ -431,6 +459,9 @@
       calculateVisualBeatState,
       isDebugMode,
       calculateClockDriftMs,
+      isCompositorVisualMode,
+      calculateVisualSongStartMs,
+      calculateNoteAnimationDelayMs,
       SONG_DEFINITIONS,
       CHART_DEFINITIONS,
       applyGroove,
@@ -507,6 +538,7 @@
       "frameMax=" + state.debugMaxFrameGapMs.toFixed(1) + "ms >50=" + state.debugLongFrameCount,
       "renderMax=" + state.debugRenderMaxMs.toFixed(1) + "ms >8=" + state.debugSlowRenderCount,
       "timerMax=" + state.debugSchedulerMaxGapMs.toFixed(1) + "ms >75=" + state.debugSlowSchedulerCount,
+      "visual=" + (state.compositorVisuals ? "compositor" : "raf"),
       "latency base=" + baseLatency.toFixed(1) + "ms out=" + outputLatency.toFixed(1) + "ms",
       "states=" + (state.debugStateChanges.join(">") || state.debugAudioState),
       "running=" + state.running + " tap=" + state.debugLastTap,
@@ -534,6 +566,9 @@
     startTime: 0,
     chart: [],
     noteEls: new Map(),
+    compositorVisuals: false,
+    visualSongStartMs: 0,
+    visualAnimations: [],
     raf: 0,
     scheduler: 0,
     nextBeat: 0,
@@ -614,6 +649,7 @@
   function stopPlayback() {
     state.running = false;
     state.countingIn = false;
+    cancelVisualAnimations();
     clearInterval(state.scheduler);
     clearTimeout(state.songEndTimer);
     cancelAnimationFrame(state.raf);
@@ -623,6 +659,21 @@
     state.songEndTimer = 0;
     state.raf = 0;
     resetVisualBeatGuide();
+  }
+
+  function cancelVisualAnimations() {
+    for (const animation of state.visualAnimations) {
+      try {
+        animation.cancel();
+      } catch (_) {
+        // Animation may already be detached after a judged note is removed.
+      }
+    }
+    state.visualAnimations = [];
+    state.visualSongStartMs = 0;
+    for (const step of document.querySelectorAll(".beat-guide-step")) {
+      step.classList.remove("compositor-guide");
+    }
   }
 
   function playTone(time, freq, duration, type, peak) {
@@ -945,7 +996,8 @@
     state.countTimers.push(setTimeout(() => {
       state.countingIn = false;
       countEl.textContent = "START!";
-      updateVisualBeatGuide(0, true);
+      if (state.compositorVisuals) resetVisualBeatGuide();
+      else updateVisualBeatGuide(0, true);
       $("attack-btn").disabled = false;
       $("start-btn").disabled = false;
       addLog("戦闘開始。リズムに合わせてこうげき!");
@@ -1020,6 +1072,82 @@
   function clearVisualNotes() {
     $("notes").innerHTML = "";
     state.noteEls.clear();
+  }
+
+  function prepareCompositorNotes(songStartMs) {
+    const appearSec = 2;
+    const exitSec = 0.18;
+    const lane = $("lane");
+    const hitLine = lane.querySelector(".hit-line");
+    const hitY = calculateHitY(hitLine.offsetTop, hitLine.offsetHeight);
+    const travel = hitY + 50;
+    const exitTravel = travel * exitSec / appearSec;
+    const duration = (appearSec + exitSec) * 1000;
+    const hitOffset = appearSec / (appearSec + exitSec);
+    const timelineNow = document.timeline && Number.isFinite(document.timeline.currentTime)
+      ? document.timeline.currentTime
+      : performance.now();
+
+    for (const note of state.chart) {
+      const motionEl = document.createElement("div");
+      motionEl.className = "note-motion compositor-note-motion";
+      motionEl.style.left = (note.phase === "head" ? 27 : 73) + "%";
+      motionEl.style.top = "-50px";
+      const noteEl = document.createElement("div");
+      noteEl.className = "note phase-" + note.phase + (note.accent ? " accent" : "");
+      noteEl.setAttribute("aria-label", note.phase === "head" ? "表拍" : "裏拍");
+      motionEl.appendChild(noteEl);
+      $("notes").appendChild(motionEl);
+      state.noteEls.set(note.id, motionEl);
+
+      const delay = calculateNoteAnimationDelayMs(
+        songStartMs,
+        note.time,
+        appearSec,
+        timelineNow
+      );
+      const animation = motionEl.animate([
+        { transform: "translate3d(0, 0, 0)", opacity: 1, offset: 0 },
+        { transform: "translate3d(0, " + travel + "px, 0)", opacity: 1, offset: hitOffset },
+        { transform: "translate3d(0, " + (travel + exitTravel) + "px, 0)", opacity: 0, offset: 1 },
+      ], {
+        duration,
+        delay,
+        easing: "linear",
+        fill: "none",
+      });
+      animation.startTime = timelineNow;
+      state.visualAnimations.push(animation);
+    }
+  }
+
+  function prepareCompositorBeatGuide(songStartMs) {
+    const steps = $("beat-guide").querySelectorAll(".beat-guide-step");
+    const beatMs = beatSeconds(SETTINGS.bpm) * 1000;
+    const barMs = beatMs * 4;
+    const pulseOffset = Math.min(0.25, 120 / barMs);
+    const releaseOffset = Math.min(0.3, pulseOffset + 0.04);
+    const timelineNow = document.timeline && Number.isFinite(document.timeline.currentTime)
+      ? document.timeline.currentTime
+      : performance.now();
+
+    steps.forEach((step, index) => {
+      step.classList.add("compositor-guide");
+      const animation = step.animate([
+        { transform: "scaleY(1.5)", opacity: 1, offset: 0 },
+        { transform: "scaleY(1.5)", opacity: 1, offset: pulseOffset },
+        { transform: "scaleY(1)", opacity: 0.38, offset: releaseOffset },
+        { transform: "scaleY(1)", opacity: 0.38, offset: 1 },
+      ], {
+        duration: barMs,
+        delay: songStartMs + index * beatMs - timelineNow,
+        easing: "linear",
+        iterations: Infinity,
+        fill: "none",
+      });
+      animation.startTime = timelineNow;
+      state.visualAnimations.push(animation);
+    });
   }
 
   function finishSong() {
@@ -1160,14 +1288,18 @@
       : 0;
     const now = currentSongTime();
     const visualBeat = calculateVisualBeatState(now, SETTINGS.bpm);
-    if (!state.countingIn) {
+    if (!state.countingIn && !state.compositorVisuals) {
       updateVisualBeatGuide(visualBeat.beatIndex, visualBeat.pulse);
     }
     const appear = 2.0;
-    const lane = $("lane");
-    const hitLine = lane.querySelector(".hit-line");
-    const hitY = calculateHitY(hitLine.offsetTop, hitLine.offsetHeight);
-    const travel = hitY + 50;
+    let hitY = 0;
+    let travel = 0;
+    if (!state.compositorVisuals) {
+      const lane = $("lane");
+      const hitLine = lane.querySelector(".hit-line");
+      hitY = calculateHitY(hitLine.offsetTop, hitLine.offsetHeight);
+      travel = hitY + 50;
+    }
 
     for (const note of state.chart) {
       const until = note.time - now;
@@ -1179,6 +1311,7 @@
         addLog("ミス! タイミングを逃した");
         updateStats();
       }
+      if (state.compositorVisuals) continue;
       if (until > appear || until < -0.18 || note.hit || note.missed) continue;
       let el = state.noteEls.get(note.id);
       if (!el) {
@@ -1226,6 +1359,15 @@
     $("start-btn").disabled = true;
     const countInStartTime = audio.currentTime + 0.2;
     state.startTime = calculateSongStartTime(countInStartTime, SETTINGS.bpm, 4);
+    state.visualSongStartMs = calculateVisualSongStartMs(
+      performance.now(),
+      audio.currentTime,
+      state.startTime
+    );
+    if (state.compositorVisuals) {
+      prepareCompositorNotes(state.visualSongStartMs);
+      prepareCompositorBeatGuide(state.visualSongStartMs);
+    }
     resetDiagnostics();
     state.debugSessionActive = state.debugEnabled;
     state.debugSongStartWallMs = performance.now()
@@ -1245,6 +1387,9 @@
 
   function bind() {
     state.debugEnabled = isDebugMode(window.location.search);
+    state.compositorVisuals = isCompositorVisualMode(window.location.search) &&
+      typeof Element !== "undefined" &&
+      typeof Element.prototype.animate === "function";
     $("bpm-label").textContent = String(SETTINGS.bpm);
     $("bpm-input").value = String(SETTINGS.bpm);
     $("start-btn").addEventListener("click", start);
