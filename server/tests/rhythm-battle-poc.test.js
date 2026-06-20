@@ -45,16 +45,21 @@ test("mobile layout prioritizes the play lane within one viewport", () => {
   assert.match(css, /height:\s*clamp\(300px,\s*calc\(100dvh\s*-\s*270px\),\s*510px\)/);
   assert.match(css, /grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/);
   assert.match(css, /@media\s*\(max-width:\s*560px\)\s*and\s*\(max-height:\s*600px\)/);
-  assert.match(html, /rhythm-battle-poc\.css\?v=10/);
+  assert.match(html, /rhythm-battle-poc\.css\?v=11/);
   assert.match(html, /id="hint-toggle"[^>]*checked/);
   assert.match(html, /id="battle-result"/);
-  assert.match(html, /rhythm-battle-poc\.js\?v=15/);
+  assert.match(html, /rhythm-battle-poc\.js\?v=16/);
   assert.match(css, /\.battle-result\s*\{/);
   assert.match(html, /id="battle-result-title"/);
   assert.match(css, /\.battle-result\.timeout/);
   assert.match(html, /id="calibration-btn"/);
   assert.match(html, /id="calibration-panel"/);
   assert.match(html, /±80ms \/ ±180ms/);
+  assert.match(html, /id="beat-guide"[^>]*aria-hidden="true"/);
+  assert.equal((html.match(/class="beat-guide-step"/g) || []).length, 4);
+  assert.match(css, /\.note\.phase-head\s*\{[\s\S]*?width:\s*22px[\s\S]*?height:\s*22px/);
+  assert.match(css, /\.note\.phase-offbeat,[\s\S]*?\.note\.phase-swing\s*\{[\s\S]*?width:\s*22px[\s\S]*?height:\s*22px/);
+  assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)/);
   assert.match(fs.readFileSync(path.join(root, "js/rhythm-battle-poc.js"), "utf8"), /addEventListener\("pointerdown", attack\)/);
 });
 
