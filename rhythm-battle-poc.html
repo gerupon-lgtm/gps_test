@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>リズム戦闘 PoC</title>
-  <link rel="stylesheet" href="./css/rhythm-battle-poc.css?v=13">
+  <link rel="stylesheet" href="./css/rhythm-battle-poc.css?v=14">
 </head>
 <body>
   <main class="poc-shell">
@@ -70,12 +70,12 @@
           <span>裏</span>
         </div>
         <pre id="diagnostics-panel" class="diagnostics-panel" hidden aria-live="off"></pre>
-        <div class="hit-line"></div>
+        <div class="hit-line"><span class="hit-line-flash"></span></div>
         <div id="beat-guide" class="beat-guide" aria-hidden="true">
-          <span class="beat-guide-step"></span>
-          <span class="beat-guide-step"></span>
-          <span class="beat-guide-step"></span>
-          <span class="beat-guide-step"></span>
+          <span class="beat-guide-step"><span class="beat-guide-flash"></span></span>
+          <span class="beat-guide-step"><span class="beat-guide-flash"></span></span>
+          <span class="beat-guide-step"><span class="beat-guide-flash"></span></span>
+          <span class="beat-guide-step"><span class="beat-guide-flash"></span></span>
         </div>
         <div id="notes" class="notes"></div>
         <div id="count-in" class="count-in" aria-live="assertive" hidden></div>
@@ -106,6 +106,6 @@
     </section>
   </main>
 
-  <script src="./js/rhythm-battle-poc.js?v=23"></script>
+  <script src="./js/rhythm-battle-poc.js?v=24"></script>
 </body>
 </html>

@@ -1133,11 +1133,12 @@
 
     steps.forEach((step, index) => {
       step.classList.add("compositor-guide");
+      const flash = step.querySelector(".beat-guide-flash");
       const animation = step.animate([
-        { transform: "scaleY(1.5)", opacity: 1, offset: 0 },
-        { transform: "scaleY(1.5)", opacity: 1, offset: pulseOffset },
-        { transform: "scaleY(1)", opacity: 0.38, offset: releaseOffset },
-        { transform: "scaleY(1)", opacity: 0.38, offset: 1 },
+        { transform: "scaleY(1.5)", offset: 0 },
+        { transform: "scaleY(1.5)", offset: pulseOffset },
+        { transform: "scaleY(1)", offset: releaseOffset },
+        { transform: "scaleY(1)", offset: 1 },
       ], {
         duration: barMs,
         delay: songStartMs + index * beatMs - timelineNow,
@@ -1147,7 +1148,45 @@
       });
       animation.startTime = timelineNow;
       state.visualAnimations.push(animation);
+
+      const flashAnimation = flash.animate([
+        { opacity: 1, offset: 0 },
+        { opacity: 1, offset: pulseOffset },
+        { opacity: 0, offset: releaseOffset },
+        { opacity: 0, offset: 1 },
+      ], {
+        duration: barMs,
+        delay: songStartMs + index * beatMs - timelineNow,
+        easing: "linear",
+        iterations: Infinity,
+        fill: "none",
+      });
+      flashAnimation.startTime = timelineNow;
+      state.visualAnimations.push(flashAnimation);
     });
+  }
+
+  function prepareCompositorHitLine(songStartMs) {
+    const flash = $("lane").querySelector(".hit-line-flash");
+    const beatMs = beatSeconds(SETTINGS.bpm) * 1000;
+    const pulseOffset = Math.min(0.5, 120 / beatMs);
+    const timelineNow = document.timeline && Number.isFinite(document.timeline.currentTime)
+      ? document.timeline.currentTime
+      : performance.now();
+    const animation = flash.animate([
+      { transform: "scaleX(1)", opacity: 1, offset: 0 },
+      { transform: "scaleX(1)", opacity: 1, offset: pulseOffset * 0.45 },
+      { transform: "scaleX(0.96)", opacity: 0, offset: pulseOffset },
+      { transform: "scaleX(0.96)", opacity: 0, offset: 1 },
+    ], {
+      duration: beatMs,
+      delay: songStartMs - timelineNow,
+      easing: "linear",
+      iterations: Infinity,
+      fill: "none",
+    });
+    animation.startTime = timelineNow;
+    state.visualAnimations.push(animation);
   }
 
   function finishSong() {
@@ -1367,6 +1406,7 @@
     if (state.compositorVisuals) {
       prepareCompositorNotes(state.visualSongStartMs);
       prepareCompositorBeatGuide(state.visualSongStartMs);
+      prepareCompositorHitLine(state.visualSongStartMs);
     }
     resetDiagnostics();
     state.debugSessionActive = state.debugEnabled;

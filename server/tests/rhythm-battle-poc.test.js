@@ -50,10 +50,10 @@ test("mobile layout prioritizes the play lane within one viewport", () => {
   assert.match(css, /height:\s*clamp\(300px,\s*calc\(100dvh\s*-\s*270px\),\s*510px\)/);
   assert.match(css, /grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/);
   assert.match(css, /@media\s*\(max-width:\s*560px\)\s*and\s*\(max-height:\s*600px\)/);
-  assert.match(html, /rhythm-battle-poc\.css\?v=13/);
+  assert.match(html, /rhythm-battle-poc\.css\?v=14/);
   assert.match(html, /id="hint-toggle"[^>]*checked/);
   assert.match(html, /id="battle-result"/);
-  assert.match(html, /rhythm-battle-poc\.js\?v=23/);
+  assert.match(html, /rhythm-battle-poc\.js\?v=24/);
   assert.match(css, /\.battle-result\s*\{/);
   assert.match(html, /id="battle-result-title"/);
   assert.match(css, /\.battle-result\.timeout/);
@@ -62,6 +62,8 @@ test("mobile layout prioritizes the play lane within one viewport", () => {
   assert.match(html, /±80ms \/ ±180ms/);
   assert.match(html, /id="beat-guide"[^>]*aria-hidden="true"/);
   assert.equal((html.match(/class="beat-guide-step"/g) || []).length, 4);
+  assert.equal((html.match(/class="beat-guide-flash"/g) || []).length, 4);
+  assert.match(html, /class="hit-line"[^>]*>[\s\S]*?class="hit-line-flash"/);
   assert.match(css, /\.note\.phase-head\s*\{[\s\S]*?width:\s*22px[\s\S]*?height:\s*22px/);
   assert.match(css, /\.note\.phase-offbeat,[\s\S]*?\.note\.phase-swing\s*\{[\s\S]*?width:\s*22px[\s\S]*?height:\s*22px/);
   assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)/);
@@ -477,6 +479,18 @@ test("compositor beat guide repeats four quarter-note animations on the shared a
   assert.match(source, /prepareCompositorBeatGuide\(state\.visualSongStartMs\)/);
   assert.match(source, /!state\.countingIn && !state\.compositorVisuals/);
   assert.match(source, /classList\.remove\("compositor-guide"\)/);
+});
+
+test("compositor beat guide and TAP line animate dedicated glow layers", () => {
+  const root = path.resolve(__dirname, "../..");
+  const source = fs.readFileSync(path.join(root, "js/rhythm-battle-poc.js"), "utf8");
+  const css = fs.readFileSync(path.join(root, "css/rhythm-battle-poc.css"), "utf8");
+  assert.match(source, /step\.querySelector\("\.beat-guide-flash"\)/);
+  assert.match(source, /function prepareCompositorHitLine\(songStartMs\)/);
+  assert.match(source, /querySelector\("\.hit-line-flash"\)/);
+  assert.match(source, /prepareCompositorHitLine\(state\.visualSongStartMs\)/);
+  assert.match(css, /\.beat-guide-flash[\s\S]*?background:\s*var\(--gold\)/);
+  assert.match(css, /\.hit-line-flash[\s\S]*?will-change:\s*transform,\s*opacity/);
 });
 
 test("judged and end-of-battle notes are removed from DOM and state", () => {
