@@ -1033,12 +1033,22 @@
     }
   }
 
+  function removeNoteElement(noteId) {
+    const noteEl = state.noteEls.get(noteId);
+    if (noteEl) noteEl.remove();
+    state.noteEls.delete(noteId);
+  }
+
+  function clearVisualNotes() {
+    $("notes").innerHTML = "";
+    state.noteEls.clear();
+  }
+
   function finishSong() {
     if (!state.running) return;
     stopPlayback();
     showDiagnosticsSummary("timeout");
-    $("notes").innerHTML = "";
-    state.noteEls.clear();
+    clearVisualNotes();
     $("attack-btn").disabled = true;
     $("start-btn").disabled = false;
     $("judge").textContent = "時間切れ";
@@ -1058,19 +1068,18 @@
   }
 
   function resetBattle() {
+    clearVisualNotes();
     state.chart = buildNoteChart({
       bpm: SETTINGS.bpm,
       bars: SETTINGS.bars,
       songId: state.songId,
       patternId: state.patternId,
     });
-    state.noteEls.clear();
     state.nextBeat = 0;
     state.enemyMaxHp = calculateEnemyMaxHp(state.chart, SETTINGS.clearHpRatio);
     state.enemyHp = state.enemyMaxHp;
     state.combo = 0;
     state.score = 0;
-    $("notes").innerHTML = "";
     $("judge").textContent = "READY";
     $("judge").className = "judge";
     $("count-in").hidden = true;
@@ -1138,8 +1147,7 @@
     state.debugLastTap = result.label + " " + (nearest.diffMs >= 0 ? "+" : "") + Math.round(nearest.diffMs) + "ms";
     if (shouldConsumeNote(nearest.diffMs, SETTINGS)) {
       nearest.note.hit = true;
-      const noteEl = state.noteEls.get(nearest.note.id);
-      if (noteEl) noteEl.remove();
+      removeNoteElement(nearest.note.id);
     }
     if (result.rank === "miss") {
       state.combo = 0;
@@ -1153,6 +1161,7 @@
       if (state.enemyHp <= 0) {
         addLog("ビートスライムを撃破!");
         stopPlayback();
+        clearVisualNotes();
         showDiagnosticsSummary("victory");
         $("attack-btn").disabled = true;
         $("start-btn").disabled = false;
@@ -1186,6 +1195,7 @@
       const until = note.time - now;
       if (until < -0.16 && !note.hit && !note.missed) {
         note.missed = true;
+        removeNoteElement(note.id);
         state.combo = 0;
         showJudge({ label: "MISS", rank: "miss", damage: 0 }, until * -1000);
         addLog("ミス! タイミングを逃した");

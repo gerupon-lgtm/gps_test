@@ -51,7 +51,7 @@ test("mobile layout prioritizes the play lane within one viewport", () => {
   assert.match(html, /rhythm-battle-poc\.css\?v=12/);
   assert.match(html, /id="hint-toggle"[^>]*checked/);
   assert.match(html, /id="battle-result"/);
-  assert.match(html, /rhythm-battle-poc\.js\?v=20/);
+  assert.match(html, /rhythm-battle-poc\.js\?v=21/);
   assert.match(css, /\.battle-result\s*\{/);
   assert.match(html, /id="battle-result-title"/);
   assert.match(css, /\.battle-result\.timeout/);
@@ -454,6 +454,17 @@ test("visual watchdog supplements stale rAF rendering without hiding diagnostics
     source.indexOf("function visualWatchdogTick")
   );
   assert.doesNotMatch(visualBody, /sampleDiagnosticsFrame/);
+});
+
+test("judged and end-of-battle notes are removed from DOM and state", () => {
+  const source = fs.readFileSync(path.resolve(__dirname, "../../js/rhythm-battle-poc.js"), "utf8");
+  assert.match(source, /function removeNoteElement\(noteId\)/);
+  assert.match(source, /noteEl\.remove\(\)[\s\S]*?state\.noteEls\.delete\(noteId\)/);
+  assert.match(source, /function clearVisualNotes\(\)/);
+  assert.match(source, /shouldConsumeNote[\s\S]*?removeNoteElement\(nearest\.note\.id\)/);
+  assert.match(source, /note\.missed = true[\s\S]*?removeNoteElement\(note\.id\)/);
+  assert.match(source, /state\.enemyHp <= 0[\s\S]*?clearVisualNotes\(\)/);
+  assert.ok((source.match(/clearVisualNotes\(\)/g) || []).length >= 4);
 });
 
 test("judgeHit returns perfect for very close timing", () => {
