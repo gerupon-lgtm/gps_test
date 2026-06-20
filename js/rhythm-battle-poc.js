@@ -462,29 +462,33 @@
   }
 
   function resetDiagnostics() {
+    state.debugSessionActive = false;
     state.debugSongStartWallMs = 0;
     state.debugLastFrameMs = 0;
-    state.debugLastFrameGapMs = 0;
     state.debugMaxFrameGapMs = 0;
     state.debugLongFrameCount = 0;
-    state.debugLastPanelUpdateMs = 0;
+    state.debugFinalDriftMs = 0;
+    state.debugMaxAbsDriftMs = 0;
     state.debugLastTap = "none";
     state.debugAudioState = state.audio ? state.audio.state : "none";
+    state.debugStateChanges = [];
     const panel = $("diagnostics-panel");
-    panel.hidden = !state.debugEnabled;
-    if (state.debugEnabled) updateDiagnosticsPanel(performance.now(), true);
+    panel.hidden = true;
+    panel.textContent = "";
   }
 
-  function updateDiagnosticsPanel(frameTime, force) {
-    if (!state.debugEnabled) return;
-    if (!force && state.debugLastPanelUpdateMs && frameTime - state.debugLastPanelUpdateMs < 250) return;
-    state.debugLastPanelUpdateMs = frameTime;
+  function showDiagnosticsSummary(reason) {
+    if (!state.debugEnabled || !state.debugSessionActive) return;
+    const frameTime = performance.now();
     const audio = state.audio;
     const audioSongTime = audio && state.startTime ? audio.currentTime - state.startTime : 0;
     const wallSongTime = state.debugSongStartWallMs
       ? (frameTime - state.debugSongStartWallMs) / 1000
       : 0;
     const driftMs = calculateClockDriftMs(audioSongTime, wallSongTime);
+    state.debugFinalDriftMs = driftMs;
+    state.debugMaxAbsDriftMs = Math.max(state.debugMaxAbsDriftMs, Math.abs(driftMs));
+    state.debugSessionActive = false;
     const baseLatency = audio && Number.isFinite(audio.baseLatency) ? audio.baseLatency * 1000 : 0;
     const outputLatency = audio && Number.isFinite(audio.outputLatency) ? audio.outputLatency * 1000 : 0;
     const userAgent = navigator.userAgent.replace(/\s+/g, " ").slice(0, 88);
@@ -492,24 +496,29 @@
     panel.hidden = false;
     panel.textContent = [
       "DEBUG " + userAgent,
-      "audio=" + state.debugAudioState + " audioSec=" + audioSongTime.toFixed(3),
-      "wallSec=" + wallSongTime.toFixed(3) + " drift=" + (driftMs >= 0 ? "+" : "") + driftMs.toFixed(1) + "ms",
-      "frame=" + state.debugLastFrameGapMs.toFixed(1) + "ms max=" + state.debugMaxFrameGapMs.toFixed(1) + "ms >50=" + state.debugLongFrameCount,
+      "reason=" + reason + " audio=" + state.debugAudioState,
+      "audioSec=" + audioSongTime.toFixed(3) + " wallSec=" + wallSongTime.toFixed(3),
+      "drift=" + (state.debugFinalDriftMs >= 0 ? "+" : "") + state.debugFinalDriftMs.toFixed(1) + "ms maxAbs=" + state.debugMaxAbsDriftMs.toFixed(1) + "ms",
+      "frameMax=" + state.debugMaxFrameGapMs.toFixed(1) + "ms >50=" + state.debugLongFrameCount,
       "latency base=" + baseLatency.toFixed(1) + "ms out=" + outputLatency.toFixed(1) + "ms",
-      "running=" + state.running + " countIn=" + state.countingIn + " tap=" + state.debugLastTap,
+      "states=" + (state.debugStateChanges.join(">") || state.debugAudioState),
+      "running=" + state.running + " tap=" + state.debugLastTap,
     ].join("\n");
   }
 
   function sampleDiagnosticsFrame(frameTime) {
-    if (!state.debugEnabled) return;
+    if (!state.debugEnabled || !state.debugSessionActive) return;
     if (state.debugLastFrameMs) {
       const frameGapMs = frameTime - state.debugLastFrameMs;
-      state.debugLastFrameGapMs = frameGapMs;
       state.debugMaxFrameGapMs = Math.max(state.debugMaxFrameGapMs, frameGapMs);
       if (frameGapMs > 50) state.debugLongFrameCount += 1;
     }
     state.debugLastFrameMs = frameTime;
-    updateDiagnosticsPanel(frameTime, false);
+    const audioSongTime = state.audio.currentTime - state.startTime;
+    const wallSongTime = (frameTime - state.debugSongStartWallMs) / 1000;
+    const driftMs = calculateClockDriftMs(audioSongTime, wallSongTime);
+    state.debugFinalDriftMs = driftMs;
+    state.debugMaxAbsDriftMs = Math.max(state.debugMaxAbsDriftMs, Math.abs(driftMs));
   }
 
   const state = {
@@ -541,14 +550,16 @@
     calibrationSamples: [],
     calibrationTimers: [],
     debugEnabled: false,
+    debugSessionActive: false,
     debugSongStartWallMs: 0,
     debugLastFrameMs: 0,
-    debugLastFrameGapMs: 0,
     debugMaxFrameGapMs: 0,
     debugLongFrameCount: 0,
-    debugLastPanelUpdateMs: 0,
+    debugFinalDriftMs: 0,
+    debugMaxAbsDriftMs: 0,
     debugLastTap: "none",
     debugAudioState: "none",
+    debugStateChanges: [],
   };
 
   function ensureAudio() {
@@ -561,7 +572,13 @@
     state.debugAudioState = state.audio.state;
     state.audio.addEventListener("statechange", () => {
       state.debugAudioState = state.audio.state;
-      updateDiagnosticsPanel(performance.now(), true);
+      if (
+        state.debugEnabled &&
+        state.debugSessionActive &&
+        state.debugStateChanges[state.debugStateChanges.length - 1] !== state.debugAudioState
+      ) {
+        state.debugStateChanges.push(state.debugAudioState);
+      }
     });
     return state.audio;
   }
@@ -594,7 +611,6 @@
     state.songEndTimer = 0;
     state.raf = 0;
     resetVisualBeatGuide();
-    updateDiagnosticsPanel(performance.now(), true);
   }
 
   function playTone(time, freq, duration, type, peak) {
@@ -977,6 +993,7 @@
   function finishSong() {
     if (!state.running) return;
     stopPlayback();
+    showDiagnosticsSummary("timeout");
     $("notes").innerHTML = "";
     state.noteEls.clear();
     $("attack-btn").disabled = true;
@@ -1070,7 +1087,6 @@
     }
     if (!state.running || state.countingIn) {
       state.debugLastTap = state.countingIn ? "ignored:count-in" : "ignored:not-running";
-      updateDiagnosticsPanel(performance.now(), true);
       return;
     }
     const nearest = findNearestNote(inputSongTime(event));
@@ -1094,6 +1110,7 @@
       if (state.enemyHp <= 0) {
         addLog("ビートスライムを撃破!");
         stopPlayback();
+        showDiagnosticsSummary("victory");
         $("attack-btn").disabled = true;
         $("start-btn").disabled = false;
         $("battle-result-title").textContent = "撃破！";
@@ -1165,10 +1182,11 @@
     const countInStartTime = audio.currentTime + 0.2;
     state.startTime = calculateSongStartTime(countInStartTime, SETTINGS.bpm, 4);
     resetDiagnostics();
+    state.debugSessionActive = state.debugEnabled;
     state.debugSongStartWallMs = performance.now()
       + (state.startTime - audio.currentTime) * 1000;
     state.debugAudioState = audio.state;
-    updateDiagnosticsPanel(performance.now(), true);
+    state.debugStateChanges = [audio.state];
     scheduleCountIn(countInStartTime);
     scheduleSongEnd();
     state.scheduler = setInterval(schedulerTick, 25);

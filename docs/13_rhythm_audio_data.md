@@ -215,7 +215,7 @@ node --test server\tests\rhythm-battle-poc.test.js
 node --check js\rhythm-battle-poc.js
 ```
 
-配布版は`dist/rhythm-battle-poc/index.html`を開く。HTMLのキャッシュ番号はCSS `v=12`、JavaScript `v=17`。2026-06-20の時計診断モード追加後は48テスト全件成功、JavaScript構文エラーなし。
+配布版は`dist/rhythm-battle-poc/index.html`を開く。HTMLのキャッシュ番号はCSS `v=12`、JavaScript `v=18`。2026-06-20の低負荷時計診断モード追加後は48テスト全件成功、JavaScript構文エラーなし。
 
 ### 12.1 Android Chrome時計診断
 
@@ -229,14 +229,14 @@ node --check js\rhythm-battle-poc.js
 2. 通常版Chrome、端末音量0。URLを再読み込みしてから開始する。
 3. LINEアプリ内ブラウザ、端末音量0。URLを再読み込みしてから開始する。
 
-描画の遅れが見えた時点と、タップを受け付けなくなった時点で診断パネルをスクリーンショットする。特に`audioSec`、`wallSec`、`drift`、`max`、`>50`、`audio`、`running`、`tap`を比較する。
+プレイ中は診断値をメモリ内にだけ集計し、診断パネルへのDOM書き換えは行わない。勝利または時間切れの後に最終サマリーが一度だけ表示されるため、プレイ終了後に無理なくスクリーンショットできる。特に`audioSec`、`wallSec`、`drift`、`maxAbs`、`frameMax`、`>50`、`audio`、`states`、`running`、`tap`を比較する。
 
 - `drift`だけが正方向へ増加: 音声時計が実時間より遅れている。
-- `drift`は小さく、`max`と`>50`が増加: メインスレッドの描画停止が発生している。
+- `drift`は小さく、`frameMax`と`>50`が増加: メインスレッドの描画停止が発生している。
 - `audio`が`running`以外へ変化: AudioContextの状態変化が発生している。
 - `running=false`の時点で`audioSec`が曲長未満: 壁時計の終了タイマーが音声時計より先に終了させている。
 
-診断値は画面表示だけに使用し、外部送信・永続保存は行わない。通常URLでは診断計測とパネル更新を行わない。
+診断値は終了後の画面表示だけに使用し、外部送信・永続保存は行わない。通常URLでは診断計測もパネル表示も行わない。
 
 ## 13. 実装済みと本体未実装の区別
 
@@ -249,7 +249,7 @@ node --check js\rhythm-battle-poc.js
 - 動的敵HP、撃破・時間切れ、8小節で停止する再生ライフサイクル
 - 任意実行できる端末別キャリブレーションと`localStorage`保存
 - 4区画ビートガイド、拍頭発光、全ノーツ22px、低モーション対応
-- `?debug=1`で有効になる音声時計・実時間・描画フレーム・タップ状態の診断表示
+- `?debug=1`で有効になり、プレイ中はメモリ集計だけを行って終了後に一度だけ表示する低負荷診断
 
 ### ゲーム本体向け方針のみ・未実装
 

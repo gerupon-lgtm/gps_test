@@ -50,7 +50,7 @@ test("mobile layout prioritizes the play lane within one viewport", () => {
   assert.match(html, /rhythm-battle-poc\.css\?v=12/);
   assert.match(html, /id="hint-toggle"[^>]*checked/);
   assert.match(html, /id="battle-result"/);
-  assert.match(html, /rhythm-battle-poc\.js\?v=17/);
+  assert.match(html, /rhythm-battle-poc\.js\?v=18/);
   assert.match(css, /\.battle-result\s*\{/);
   assert.match(html, /id="battle-result-title"/);
   assert.match(css, /\.battle-result\.timeout/);
@@ -408,15 +408,19 @@ test("runtime drives and resets the visual beat guide from the shared clock", ()
   assert.match(source, /function stopPlayback\(\)[\s\S]*?resetVisualBeatGuide\(\)/);
 });
 
-test("diagnostic runtime samples clocks and frames only in debug mode", () => {
+test("diagnostic runtime collects silently and renders only the final summary", () => {
   const source = fs.readFileSync(path.resolve(__dirname, "../../js/rhythm-battle-poc.js"), "utf8");
-  assert.match(source, /function updateDiagnosticsPanel\(frameTime,\s*force\)/);
-  assert.match(source, /if \(!state\.debugEnabled\) return/);
-  assert.match(source, /frameTime - state\.debugLastPanelUpdateMs < 250/);
+  assert.match(source, /function showDiagnosticsSummary\(reason\)/);
+  assert.match(source, /if \(!state\.debugEnabled \|\| !state\.debugSessionActive\) return/);
   assert.match(source, /frameGapMs > 50/);
   assert.match(source, /debugSongStartWallMs\s*=\s*performance\.now\(\)/);
   assert.match(source, /calculateClockDriftMs\(audioSongTime,\s*wallSongTime\)/);
   assert.match(source, /addEventListener\("statechange"/);
+  assert.match(source, /showDiagnosticsSummary\("timeout"\)/);
+  assert.match(source, /showDiagnosticsSummary\("victory"\)/);
+  assert.match(source, /debugMaxAbsDriftMs\s*=\s*Math\.max/);
+  assert.match(source, /debugStateChanges\.push/);
+  assert.doesNotMatch(source, /debugLastPanelUpdateMs/);
 });
 
 test("judgeHit returns perfect for very close timing", () => {
