@@ -52,10 +52,10 @@ test("mobile layout prioritizes the play lane within one viewport", () => {
   assert.match(css, /height:\s*clamp\(300px,\s*calc\(100dvh\s*-\s*270px\),\s*510px\)/);
   assert.match(css, /grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/);
   assert.match(css, /@media\s*\(max-width:\s*560px\)\s*and\s*\(max-height:\s*600px\)/);
-  assert.match(html, /rhythm-battle-poc\.css\?v=14/);
+  assert.match(html, /rhythm-battle-poc\.css\?v=15/);
   assert.match(html, /id="hint-toggle"[^>]*checked/);
   assert.match(html, /id="battle-result"/);
-  assert.match(html, /rhythm-battle-poc\.js\?v=24/);
+  assert.match(html, /rhythm-battle-poc\.js\?v=25/);
   assert.match(css, /\.battle-result\s*\{/);
   assert.match(html, /id="battle-result-title"/);
   assert.match(css, /\.battle-result\.timeout/);
