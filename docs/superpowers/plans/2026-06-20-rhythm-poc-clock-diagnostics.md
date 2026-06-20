@@ -4,7 +4,7 @@
 
 **Goal:** Add a `?debug=1`-only on-screen diagnostic panel that distinguishes audio-clock drift, frame stalls, AudioContext state changes, and early battle termination on Android Chrome.
 
-**Architecture:** Pure helpers calculate debug enablement and clock drift and remain testable under Node.js. Browser-only code records a performance-clock anchor at battle start, samples frame gaps in the existing render loop, listens for AudioContext state changes, and refreshes a non-interactive panel at most every 250ms. Normal URLs exit the diagnostic path immediately.
+**Architecture:** Pure helpers calculate debug enablement and clock drift and remain testable under Node.js. Browser-only code records a performance-clock anchor, frame gaps, maximum drift, and AudioContext state changes in memory without updating the DOM during play. It renders one non-interactive summary only after victory or time-out; normal URLs exit the diagnostic path immediately.
 
 **Tech Stack:** Vanilla HTML, CSS, JavaScript, Web Audio API, Node.js built-in test runner
 
@@ -14,7 +14,7 @@
 - Do not change chart timing, judgment, scoring, damage, enemy HP, audio scheduling, or song-end behavior.
 - Do not transmit or persist diagnostic values.
 - Keep the panel non-interactive with `pointer-events: none`.
-- Limit diagnostic DOM updates to one per 250ms.
+- Do not update diagnostic DOM during active play; show one summary after victory or time-out.
 - Update the distribution folder and document `https://gerupon-lgtm.github.io/beat-poc/?debug=1` as the verification URL.
 
 ---
@@ -164,7 +164,7 @@ Record these URLs and test order in the canonical document:
 2. Chrome, device volume 0: same URL after reload
 3. LINE in-app browser, device volume 0: same URL after reload
 
-Use the same song, chart, BPM, and hint setting. Capture the panel when lag becomes visible and again when taps stop.
+Use the same song, chart, BPM, and hint setting. Capture the final summary after victory or time-out.
 
 - [ ] **Step 3: Run final verification**
 
@@ -175,4 +175,70 @@ Run full tests, syntax check for source and distribution JavaScript, SHA-256 com
 ```powershell
 git add -- docs/13_rhythm_audio_data.md
 git commit -m "時計診断の実機手順を文書化"
+```
+
+### Task 4: Low-overhead end-of-battle summary
+
+**Files:**
+- Modify: `server/tests/rhythm-battle-poc.test.js`
+- Modify: `js/rhythm-battle-poc.js`
+- Modify: `rhythm-battle-poc.html`
+- Modify: `docs/13_rhythm_audio_data.md`
+- Modify distribution copies under `dist/rhythm-battle-poc/`
+
+**Interfaces:**
+- Replaces: `updateDiagnosticsPanel(frameTime, force)` during active play
+- Produces: `showDiagnosticsSummary(reason: "victory" | "timeout"): void`
+- Adds state: `debugSessionActive`, `debugMaxAbsDriftMs`, `debugFinalDriftMs`, `debugStateChanges`
+
+- [ ] **Step 1: Rewrite the runtime contract test to fail on the current live panel**
+
+Require `showDiagnosticsSummary("timeout")`, `showDiagnosticsSummary("victory")`, maximum absolute drift collection, and state-change history. Reject the old 250ms panel refresh path.
+
+```js
+assert.match(source, /function showDiagnosticsSummary\(reason\)/);
+assert.match(source, /showDiagnosticsSummary\("timeout"\)/);
+assert.match(source, /showDiagnosticsSummary\("victory"\)/);
+assert.match(source, /debugMaxAbsDriftMs\s*=\s*Math\.max/);
+assert.match(source, /debugStateChanges\.push/);
+assert.doesNotMatch(source, /debugLastPanelUpdateMs/);
+```
+
+- [ ] **Step 2: Run the focused test and confirm failure**
+
+Run: `node --test --test-name-pattern="diagnostic runtime" server\tests\rhythm-battle-poc.test.js`
+
+Expected: FAIL because the current implementation still updates the panel every 250ms.
+
+- [ ] **Step 3: Collect diagnostics without DOM writes**
+
+Remove `debugLastPanelUpdateMs` and `updateDiagnosticsPanel`. During each debug frame, update only numeric state:
+
+```js
+const driftMs = calculateClockDriftMs(audioSongTime, wallSongTime);
+state.debugFinalDriftMs = driftMs;
+state.debugMaxAbsDriftMs = Math.max(state.debugMaxAbsDriftMs, Math.abs(driftMs));
+```
+
+Keep the panel hidden from battle start through active play. Record AudioContext state transitions by appending a new state only when it differs from the last recorded state.
+
+- [ ] **Step 4: Render one final summary**
+
+`showDiagnosticsSummary(reason)` calculates final audio and wall times, sets `debugSessionActive=false`, and writes the panel once. Call it after `stopPlayback()` in `finishSong()` with `"timeout"` and in the victory branch with `"victory"`.
+
+The summary includes user agent, reason, final and maximum drift, maximum frame gap, 50ms count, latencies, state history, running flag, and last tap.
+
+- [ ] **Step 5: Bump JavaScript cache and update documentation**
+
+Change JavaScript to `v=18` in development and distribution HTML. Update tests and canonical documentation to say diagnostics are collected silently and shown only after battle end.
+
+- [ ] **Step 6: Run full verification and copy distribution files**
+
+Run all tests and both JavaScript syntax checks, then copy source HTML/CSS/JavaScript to `dist/rhythm-battle-poc/` and verify SHA-256 equality.
+
+- [ ] **Step 7: Commit the low-overhead diagnostics**
+
+```powershell
+git add -- rhythm-battle-poc.html js/rhythm-battle-poc.js server/tests/rhythm-battle-poc.test.js docs/13_rhythm_audio_data.md docs/superpowers/plans/2026-06-20-rhythm-poc-clock-diagnostics.md
+git commit -m "診断結果を戦闘終了後だけ表示"
 ```
