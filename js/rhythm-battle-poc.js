@@ -436,6 +436,20 @@
   }
 
   const $ = (id) => document.getElementById(id);
+
+  function updateVisualBeatGuide(beatIndex, pulse) {
+    const guide = $("beat-guide");
+    if (!guide) return;
+    for (const [index, step] of Array.from(guide.children).entries()) {
+      step.classList.toggle("active", index === beatIndex);
+    }
+    $("lane").classList.toggle("beat-pulse", Boolean(pulse));
+  }
+
+  function resetVisualBeatGuide() {
+    updateVisualBeatGuide(-1, false);
+  }
+
   const state = {
     audio: null,
     master: null,
@@ -503,6 +517,7 @@
     state.scheduler = 0;
     state.songEndTimer = 0;
     state.raf = 0;
+    resetVisualBeatGuide();
   }
 
   function playTone(time, freq, duration, type, peak) {
@@ -814,6 +829,10 @@
       const delayMs = Math.max(0, (time - state.audio.currentTime) * 1000);
       state.countTimers.push(setTimeout(() => {
         countEl.textContent = String(index + 1);
+        updateVisualBeatGuide(index, true);
+        state.countTimers.push(setTimeout(() => {
+          if (state.countingIn) updateVisualBeatGuide(index, false);
+        }, 120));
       }, delayMs));
     }
 
@@ -821,6 +840,7 @@
     state.countTimers.push(setTimeout(() => {
       state.countingIn = false;
       countEl.textContent = "START!";
+      updateVisualBeatGuide(0, true);
       $("attack-btn").disabled = false;
       $("start-btn").disabled = false;
       addLog("戦闘開始。リズムに合わせてこうげき!");
@@ -920,6 +940,7 @@
     $("battle-result").className = "battle-result";
     $("battle-result").hidden = true;
     $("log").innerHTML = "";
+    resetVisualBeatGuide();
     updateStats();
   }
 
@@ -1005,6 +1026,10 @@
   function render() {
     if (!state.running) return;
     const now = currentSongTime();
+    const visualBeat = calculateVisualBeatState(now, SETTINGS.bpm);
+    if (!state.countingIn) {
+      updateVisualBeatGuide(visualBeat.beatIndex, visualBeat.pulse);
+    }
     const appear = 2.0;
     const lane = $("lane");
     const hitLine = lane.querySelector(".hit-line");

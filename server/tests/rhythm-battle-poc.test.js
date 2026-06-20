@@ -385,6 +385,14 @@ test("visual beat pulse lasts for a fixed short window", () => {
   });
 });
 
+test("runtime drives and resets the visual beat guide from the shared clock", () => {
+  const source = fs.readFileSync(path.resolve(__dirname, "../../js/rhythm-battle-poc.js"), "utf8");
+  assert.match(source, /calculateVisualBeatState\(now,\s*SETTINGS\.bpm\)/);
+  assert.match(source, /updateVisualBeatGuide\(visualBeat\.beatIndex,\s*visualBeat\.pulse\)/);
+  assert.match(source, /function resetVisualBeatGuide\(\)/);
+  assert.match(source, /function stopPlayback\(\)[\s\S]*?resetVisualBeatGuide\(\)/);
+});
+
 test("judgeHit returns perfect for very close timing", () => {
   assert.deepEqual(judgeHit(10, { perfectMs: 55, goodMs: 120 }), {
     label: "PERFECT",
