@@ -1,6 +1,8 @@
-# リズム戦闘PoC 引き継ぎ資料
+# リズム戦闘PoC 引き継ぎ補足資料
 
 最終更新: 2026-06-20
+
+> 本資料は検証経緯を残すための補足資料である。現在仕様の正本は[`../13_rhythm_audio_data.md`](../13_rhythm_audio_data.md)とし、差異がある場合は正本を優先する。
 
 ## 1. 目的
 
@@ -14,10 +16,10 @@ GPSゲーム本体へリズム戦闘を導入できるか検証するため、We
 - `css/rhythm-battle-poc.css`: PC・スマホ表示
 - `js/rhythm-battle-poc.js`: 楽曲生成、譜面、判定、戦闘、キャリブレーション
 - `server/tests/rhythm-battle-poc.test.js`: Node.jsテスト
-- `docs/13_rhythm_audio_data.md`: 音声・譜面・キャリブレーション仕様
+- `docs/13_rhythm_audio_data.md`: 音声・譜面・視覚プレイ・キャリブレーションの正本
 - `docs/superpowers/specs/`: 機能別の設計記録
 - `docs/superpowers/plans/`: 機能別の実装計画と完了記録
-- `dist/rhythm-battle-poc-v4.zip`: 最新配布用ZIP
+- `dist/rhythm-battle-poc/`: `index.html`から実行する配布用フォルダ
 
 ## 3. 現在の楽曲と譜面
 
@@ -117,7 +119,7 @@ node --test server\tests\rhythm-battle-poc.test.js
 node --check js\rhythm-battle-poc.js
 ```
 
-配布版は`dist/rhythm-battle-poc-v4.zip`を解凍し、`index.html`を開く。外部ライブラリ、画像、API、DBは不要。
+配布版は`dist/rhythm-battle-poc/index.html`を開く。外部ライブラリ、画像、API、DBは不要。
 
 HTMLのキャッシュ番号はCSS `v=11`、JavaScript `v=16`。
 
