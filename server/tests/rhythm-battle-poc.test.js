@@ -408,6 +408,17 @@ test("runtime drives and resets the visual beat guide from the shared clock", ()
   assert.match(source, /function stopPlayback\(\)[\s\S]*?resetVisualBeatGuide\(\)/);
 });
 
+test("diagnostic runtime samples clocks and frames only in debug mode", () => {
+  const source = fs.readFileSync(path.resolve(__dirname, "../../js/rhythm-battle-poc.js"), "utf8");
+  assert.match(source, /function updateDiagnosticsPanel\(frameTime,\s*force\)/);
+  assert.match(source, /if \(!state\.debugEnabled\) return/);
+  assert.match(source, /frameTime - state\.debugLastPanelUpdateMs < 250/);
+  assert.match(source, /frameGapMs > 50/);
+  assert.match(source, /debugSongStartWallMs\s*=\s*performance\.now\(\)/);
+  assert.match(source, /calculateClockDriftMs\(audioSongTime,\s*wallSongTime\)/);
+  assert.match(source, /addEventListener\("statechange"/);
+});
+
 test("judgeHit returns perfect for very close timing", () => {
   assert.deepEqual(judgeHit(10, { perfectMs: 55, goodMs: 120 }), {
     label: "PERFECT",

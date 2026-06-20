@@ -461,6 +461,57 @@
     updateVisualBeatGuide(-1, false);
   }
 
+  function resetDiagnostics() {
+    state.debugSongStartWallMs = 0;
+    state.debugLastFrameMs = 0;
+    state.debugLastFrameGapMs = 0;
+    state.debugMaxFrameGapMs = 0;
+    state.debugLongFrameCount = 0;
+    state.debugLastPanelUpdateMs = 0;
+    state.debugLastTap = "none";
+    state.debugAudioState = state.audio ? state.audio.state : "none";
+    const panel = $("diagnostics-panel");
+    panel.hidden = !state.debugEnabled;
+    if (state.debugEnabled) updateDiagnosticsPanel(performance.now(), true);
+  }
+
+  function updateDiagnosticsPanel(frameTime, force) {
+    if (!state.debugEnabled) return;
+    if (!force && state.debugLastPanelUpdateMs && frameTime - state.debugLastPanelUpdateMs < 250) return;
+    state.debugLastPanelUpdateMs = frameTime;
+    const audio = state.audio;
+    const audioSongTime = audio && state.startTime ? audio.currentTime - state.startTime : 0;
+    const wallSongTime = state.debugSongStartWallMs
+      ? (frameTime - state.debugSongStartWallMs) / 1000
+      : 0;
+    const driftMs = calculateClockDriftMs(audioSongTime, wallSongTime);
+    const baseLatency = audio && Number.isFinite(audio.baseLatency) ? audio.baseLatency * 1000 : 0;
+    const outputLatency = audio && Number.isFinite(audio.outputLatency) ? audio.outputLatency * 1000 : 0;
+    const userAgent = navigator.userAgent.replace(/\s+/g, " ").slice(0, 88);
+    const panel = $("diagnostics-panel");
+    panel.hidden = false;
+    panel.textContent = [
+      "DEBUG " + userAgent,
+      "audio=" + state.debugAudioState + " audioSec=" + audioSongTime.toFixed(3),
+      "wallSec=" + wallSongTime.toFixed(3) + " drift=" + (driftMs >= 0 ? "+" : "") + driftMs.toFixed(1) + "ms",
+      "frame=" + state.debugLastFrameGapMs.toFixed(1) + "ms max=" + state.debugMaxFrameGapMs.toFixed(1) + "ms >50=" + state.debugLongFrameCount,
+      "latency base=" + baseLatency.toFixed(1) + "ms out=" + outputLatency.toFixed(1) + "ms",
+      "running=" + state.running + " countIn=" + state.countingIn + " tap=" + state.debugLastTap,
+    ].join("\n");
+  }
+
+  function sampleDiagnosticsFrame(frameTime) {
+    if (!state.debugEnabled) return;
+    if (state.debugLastFrameMs) {
+      const frameGapMs = frameTime - state.debugLastFrameMs;
+      state.debugLastFrameGapMs = frameGapMs;
+      state.debugMaxFrameGapMs = Math.max(state.debugMaxFrameGapMs, frameGapMs);
+      if (frameGapMs > 50) state.debugLongFrameCount += 1;
+    }
+    state.debugLastFrameMs = frameTime;
+    updateDiagnosticsPanel(frameTime, false);
+  }
+
   const state = {
     audio: null,
     master: null,
@@ -489,6 +540,15 @@
     calibrationUsed: new Set(),
     calibrationSamples: [],
     calibrationTimers: [],
+    debugEnabled: false,
+    debugSongStartWallMs: 0,
+    debugLastFrameMs: 0,
+    debugLastFrameGapMs: 0,
+    debugMaxFrameGapMs: 0,
+    debugLongFrameCount: 0,
+    debugLastPanelUpdateMs: 0,
+    debugLastTap: "none",
+    debugAudioState: "none",
   };
 
   function ensureAudio() {
@@ -498,6 +558,11 @@
     state.master = state.audio.createGain();
     state.master.gain.value = 0.72;
     state.master.connect(state.audio.destination);
+    state.debugAudioState = state.audio.state;
+    state.audio.addEventListener("statechange", () => {
+      state.debugAudioState = state.audio.state;
+      updateDiagnosticsPanel(performance.now(), true);
+    });
     return state.audio;
   }
 
@@ -529,6 +594,7 @@
     state.songEndTimer = 0;
     state.raf = 0;
     resetVisualBeatGuide();
+    updateDiagnosticsPanel(performance.now(), true);
   }
 
   function playTone(time, freq, duration, type, peak) {
@@ -998,13 +1064,19 @@
   function attack(event) {
     if (event) event.preventDefault();
     if (state.calibrating) {
+      state.debugLastTap = "calibration";
       recordCalibrationTap(event);
       return;
     }
-    if (!state.running || state.countingIn) return;
+    if (!state.running || state.countingIn) {
+      state.debugLastTap = state.countingIn ? "ignored:count-in" : "ignored:not-running";
+      updateDiagnosticsPanel(performance.now(), true);
+      return;
+    }
     const nearest = findNearestNote(inputSongTime(event));
     if (!nearest) return;
     const result = judgeHit(nearest.diffMs, SETTINGS);
+    state.debugLastTap = result.label + " " + (nearest.diffMs >= 0 ? "+" : "") + Math.round(nearest.diffMs) + "ms";
     if (shouldConsumeNote(nearest.diffMs, SETTINGS)) {
       nearest.note.hit = true;
       const noteEl = state.noteEls.get(nearest.note.id);
@@ -1034,8 +1106,10 @@
     updateStats();
   }
 
-  function render() {
+  function render(frameTime) {
     if (!state.running) return;
+    const currentFrameTime = Number.isFinite(frameTime) ? frameTime : performance.now();
+    sampleDiagnosticsFrame(currentFrameTime);
     const now = currentSongTime();
     const visualBeat = calculateVisualBeatState(now, SETTINGS.bpm);
     if (!state.countingIn) {
@@ -1090,6 +1164,11 @@
     $("start-btn").disabled = true;
     const countInStartTime = audio.currentTime + 0.2;
     state.startTime = calculateSongStartTime(countInStartTime, SETTINGS.bpm, 4);
+    resetDiagnostics();
+    state.debugSongStartWallMs = performance.now()
+      + (state.startTime - audio.currentTime) * 1000;
+    state.debugAudioState = audio.state;
+    updateDiagnosticsPanel(performance.now(), true);
     scheduleCountIn(countInStartTime);
     scheduleSongEnd();
     state.scheduler = setInterval(schedulerTick, 25);
@@ -1102,6 +1181,7 @@
   }
 
   function bind() {
+    state.debugEnabled = isDebugMode(window.location.search);
     $("bpm-label").textContent = String(SETTINGS.bpm);
     $("bpm-input").value = String(SETTINGS.bpm);
     $("start-btn").addEventListener("click", start);
@@ -1114,6 +1194,7 @@
       }
     });
     resetBattle();
+    resetDiagnostics();
     loadCalibration();
   }
 
