@@ -147,6 +147,17 @@
     return countInStartTime + countInDuration(bpm, beats);
   }
 
+  function buildCountInEvents() {
+    return [
+      { beatOffset: 0, label: 1, guideIndex: 0 },
+      { beatOffset: 2, label: 2, guideIndex: 2 },
+      { beatOffset: 4, label: 1, guideIndex: 0 },
+      { beatOffset: 5, label: 2, guideIndex: 1 },
+      { beatOffset: 6, label: 3, guideIndex: 2 },
+      { beatOffset: 7, label: 4, guideIndex: 3 },
+    ];
+  }
+
   function calculateVisualBeatState(songTime, bpm, beatsPerBar = 4, pulseSeconds = 0.12) {
     if (!Number.isFinite(songTime) || songTime < 0) {
       return { beatIndex: -1, progress: 0, pulse: false };
@@ -456,6 +467,7 @@
       normalizeBpm,
       countInDuration,
       calculateSongStartTime,
+      buildCountInEvents,
       calculateVisualBeatState,
       isDebugMode,
       calculateClockDriftMs,
@@ -979,15 +991,15 @@
     const countEl = $("count-in");
     countEl.hidden = false;
 
-    for (let index = 0; index < 4; index += 1) {
-      const time = countInStartTime + index * beat;
-      playCountTone(time, index + 1);
+    for (const event of buildCountInEvents()) {
+      const time = countInStartTime + event.beatOffset * beat;
+      playCountTone(time, event.label);
       const delayMs = Math.max(0, (time - state.audio.currentTime) * 1000);
       state.countTimers.push(setTimeout(() => {
-        countEl.textContent = String(index + 1);
-        updateVisualBeatGuide(index, true);
+        countEl.textContent = String(event.label);
+        updateVisualBeatGuide(event.guideIndex, true);
         state.countTimers.push(setTimeout(() => {
-          if (state.countingIn) updateVisualBeatGuide(index, false);
+          if (state.countingIn) updateVisualBeatGuide(event.guideIndex, false);
         }, 120));
       }, delayMs));
     }
@@ -1397,7 +1409,7 @@
     $("attack-btn").disabled = true;
     $("start-btn").disabled = true;
     const countInStartTime = audio.currentTime + 0.2;
-    state.startTime = calculateSongStartTime(countInStartTime, SETTINGS.bpm, 4);
+    state.startTime = calculateSongStartTime(countInStartTime, SETTINGS.bpm, 8);
     state.visualSongStartMs = calculateVisualSongStartMs(
       performance.now(),
       audio.currentTime,

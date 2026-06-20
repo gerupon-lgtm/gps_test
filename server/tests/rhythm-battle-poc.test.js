@@ -21,6 +21,7 @@ const {
   normalizeBpm,
   countInDuration,
   calculateSongStartTime,
+  buildCountInEvents,
   calculateVisualBeatState,
   isDebugMode,
   calculateClockDriftMs,
@@ -368,6 +369,19 @@ test("normalizeBpm rounds and clamps the BPM input", () => {
 test("four quarter-note count-in determines the song start time", () => {
   assert.equal(countInDuration(120, 4), 2);
   assert.equal(calculateSongStartTime(10.5, 120, 4), 12.5);
+});
+
+test("two-bar count-in adds half-note counts before the quarter-note count", () => {
+  assert.deepEqual(buildCountInEvents(), [
+    { beatOffset: 0, label: 1, guideIndex: 0 },
+    { beatOffset: 2, label: 2, guideIndex: 2 },
+    { beatOffset: 4, label: 1, guideIndex: 0 },
+    { beatOffset: 5, label: 2, guideIndex: 1 },
+    { beatOffset: 6, label: 3, guideIndex: 2 },
+    { beatOffset: 7, label: 4, guideIndex: 3 },
+  ]);
+  assert.equal(countInDuration(120, 8), 4);
+  assert.equal(calculateSongStartTime(10.5, 120, 8), 14.5);
 });
 
 test("visual beat state follows the audio-clock beat within each bar", () => {
