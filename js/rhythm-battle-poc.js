@@ -467,6 +467,11 @@
     state.debugLastFrameMs = 0;
     state.debugMaxFrameGapMs = 0;
     state.debugLongFrameCount = 0;
+    state.debugRenderMaxMs = 0;
+    state.debugSlowRenderCount = 0;
+    state.debugLastSchedulerMs = 0;
+    state.debugSchedulerMaxGapMs = 0;
+    state.debugSlowSchedulerCount = 0;
     state.debugFinalDriftMs = 0;
     state.debugMaxAbsDriftMs = 0;
     state.debugLastTap = "none";
@@ -500,6 +505,8 @@
       "audioSec=" + audioSongTime.toFixed(3) + " wallSec=" + wallSongTime.toFixed(3),
       "drift=" + (state.debugFinalDriftMs >= 0 ? "+" : "") + state.debugFinalDriftMs.toFixed(1) + "ms maxAbs=" + state.debugMaxAbsDriftMs.toFixed(1) + "ms",
       "frameMax=" + state.debugMaxFrameGapMs.toFixed(1) + "ms >50=" + state.debugLongFrameCount,
+      "renderMax=" + state.debugRenderMaxMs.toFixed(1) + "ms >8=" + state.debugSlowRenderCount,
+      "timerMax=" + state.debugSchedulerMaxGapMs.toFixed(1) + "ms >75=" + state.debugSlowSchedulerCount,
       "latency base=" + baseLatency.toFixed(1) + "ms out=" + outputLatency.toFixed(1) + "ms",
       "states=" + (state.debugStateChanges.join(">") || state.debugAudioState),
       "running=" + state.running + " tap=" + state.debugLastTap,
@@ -555,6 +562,11 @@
     debugLastFrameMs: 0,
     debugMaxFrameGapMs: 0,
     debugLongFrameCount: 0,
+    debugRenderMaxMs: 0,
+    debugSlowRenderCount: 0,
+    debugLastSchedulerMs: 0,
+    debugSchedulerMaxGapMs: 0,
+    debugSlowSchedulerCount: 0,
     debugFinalDriftMs: 0,
     debugMaxAbsDriftMs: 0,
     debugLastTap: "none",
@@ -968,6 +980,15 @@
 
   function schedulerTick() {
     if (!state.running) return;
+    if (state.debugEnabled && state.debugSessionActive) {
+      const schedulerNowMs = performance.now();
+      if (state.debugLastSchedulerMs) {
+        const schedulerGapMs = schedulerNowMs - state.debugLastSchedulerMs;
+        state.debugSchedulerMaxGapMs = Math.max(state.debugSchedulerMaxGapMs, schedulerGapMs);
+        if (schedulerGapMs > 75) state.debugSlowSchedulerCount += 1;
+      }
+      state.debugLastSchedulerMs = schedulerNowMs;
+    }
     const audio = state.audio;
     const beat = beatSeconds(SETTINGS.bpm);
     while (
@@ -1125,6 +1146,9 @@
 
   function render(frameTime) {
     if (!state.running) return;
+    const renderStartedMs = state.debugEnabled && state.debugSessionActive
+      ? performance.now()
+      : 0;
     const currentFrameTime = Number.isFinite(frameTime) ? frameTime : performance.now();
     sampleDiagnosticsFrame(currentFrameTime);
     const now = currentSongTime();
@@ -1160,6 +1184,11 @@
       const y = hitY - (until / appear) * travel;
       el.style.left = x + "%";
       el.style.top = y + "px";
+    }
+    if (renderStartedMs) {
+      const renderDurationMs = performance.now() - renderStartedMs;
+      state.debugRenderMaxMs = Math.max(state.debugRenderMaxMs, renderDurationMs);
+      if (renderDurationMs > 8) state.debugSlowRenderCount += 1;
     }
     state.raf = requestAnimationFrame(render);
   }

@@ -50,7 +50,7 @@ test("mobile layout prioritizes the play lane within one viewport", () => {
   assert.match(html, /rhythm-battle-poc\.css\?v=12/);
   assert.match(html, /id="hint-toggle"[^>]*checked/);
   assert.match(html, /id="battle-result"/);
-  assert.match(html, /rhythm-battle-poc\.js\?v=18/);
+  assert.match(html, /rhythm-battle-poc\.js\?v=19/);
   assert.match(css, /\.battle-result\s*\{/);
   assert.match(html, /id="battle-result-title"/);
   assert.match(css, /\.battle-result\.timeout/);
@@ -420,6 +420,12 @@ test("diagnostic runtime collects silently and renders only the final summary", 
   assert.match(source, /showDiagnosticsSummary\("victory"\)/);
   assert.match(source, /debugMaxAbsDriftMs\s*=\s*Math\.max/);
   assert.match(source, /debugStateChanges\.push/);
+  assert.match(source, /debugRenderMaxMs\s*=\s*Math\.max/);
+  assert.match(source, /renderDurationMs > 8/);
+  assert.match(source, /debugSchedulerMaxGapMs\s*=\s*Math\.max/);
+  assert.match(source, /schedulerGapMs > 75/);
+  assert.match(source, /renderMax=/);
+  assert.match(source, /timerMax=/);
   assert.doesNotMatch(source, /debugLastPanelUpdateMs/);
 });
 
